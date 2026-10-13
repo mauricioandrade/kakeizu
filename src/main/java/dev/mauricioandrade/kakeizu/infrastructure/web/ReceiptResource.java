@@ -1,8 +1,11 @@
 package dev.mauricioandrade.kakeizu.infrastructure.web;
 
+import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.ConfirmResult;
+import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
+import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
@@ -37,12 +40,16 @@ public class ReceiptResource {
 
     private static final List<ReceiptType> TYPES = Arrays.asList(ReceiptType.values());
     private static final List<Category> CATEGORIES = Arrays.asList(Category.values());
+    private static final List<PaymentMethod> METHODS = Arrays.asList(PaymentMethod.values());
+    private static final List<CardBrand> BRANDS = Arrays.asList(CardBrand.values());
+    private static final List<Direction> DIRECTIONS = Arrays.asList(Direction.values());
 
     record review(ReceiptRecord receipt, ExtractionResult result, boolean duplicate, List<ReceiptType> types,
-                  List<Category> categories) implements TemplateInstance {
+                  List<Category> categories, List<PaymentMethod> methods, List<CardBrand> brands,
+                  List<Direction> directions) implements TemplateInstance {
 
         review(ReceiptRecord receipt, ExtractionResult result, boolean duplicate) {
-            this(receipt, result, duplicate, TYPES, CATEGORIES);
+            this(receipt, result, duplicate, TYPES, CATEGORIES, METHODS, BRANDS, DIRECTIONS);
         }
     }
 
@@ -66,11 +73,11 @@ public class ReceiptResource {
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response upload(@RestForm("image") FileUpload upload) throws IOException {
         if (upload == null) {
-            throw new InvalidUploadException("Choose a photo of the receipt.");
+            throw new InvalidInputException("Choose a photo of the receipt.");
         }
         byte[] content = Files.readAllBytes(upload.uploadedFile());
         var imageType = ImageType.detect(content)
-                .orElseThrow(() -> new InvalidUploadException("Only JPG and PNG images are accepted."));
+                .orElseThrow(() -> new InvalidInputException("Only JPG and PNG images are accepted."));
 
         URI next = switch (extractReceipt.extract(content, imageType.mediaType())) {
             case UploadResult.Extracted(var receipt) -> reviewUri(receipt.id(), false);

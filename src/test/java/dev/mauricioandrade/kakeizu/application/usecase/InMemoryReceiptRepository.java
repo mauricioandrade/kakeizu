@@ -1,6 +1,7 @@
 package dev.mauricioandrade.kakeizu.application.usecase;
 
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
+import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
@@ -60,6 +61,15 @@ class InMemoryReceiptRepository implements ReceiptRepository {
     @Override
     public List<ReceiptRecord> findConfirmedIssuedOn(LocalDate day) {
         return confirmed().filter(r -> r.confirmedReceipt().orElseThrow().issuedOn().equals(day)).toList();
+    }
+
+    @Override
+    public List<ReceiptRecord> findConfirmedSalesIssuedBetween(LocalDate from, LocalDate to) {
+        return confirmed().filter(r -> {
+            var confirmation = r.confirmation().orElseThrow();
+            var day = confirmation.receipt().issuedOn();
+            return confirmation.direction() == Direction.SALE && !day.isBefore(from) && !day.isAfter(to);
+        }).toList();
     }
 
     private java.util.stream.Stream<ReceiptRecord> confirmed() {

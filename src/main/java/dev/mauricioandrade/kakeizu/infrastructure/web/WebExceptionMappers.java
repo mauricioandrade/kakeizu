@@ -42,7 +42,7 @@ public class WebExceptionMappers {
     }
 
     @ServerExceptionMapper
-    public Response invalidUpload(InvalidUploadException e) {
+    public Response invalidInput(InvalidInputException e) {
         return page(400, e.getMessage());
     }
 

@@ -4,14 +4,18 @@ import static dev.mauricioandrade.kakeizu.domain.model.ValidationIssue.error;
 import static dev.mauricioandrade.kakeizu.domain.model.ValidationIssue.warning;
 
 import dev.mauricioandrade.kakeizu.domain.exception.InvalidValueException;
+import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
+import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.NfeAccessKey;
+import dev.mauricioandrade.kakeizu.domain.model.Payment;
+import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.PixEndToEndId;
 import dev.mauricioandrade.kakeizu.domain.model.PixReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Receipt;
@@ -19,6 +23,7 @@ import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
 import dev.mauricioandrade.kakeizu.domain.model.ValidationIssue;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,9 +37,14 @@ import java.util.function.Supplier;
 public class ExtractionMapper {
 
     private final ReceiptValidator validator;
+    private final Optional<Cnpj> shopCnpj;
 
-    public ExtractionMapper(ReceiptValidator validator) {
+    /**
+     * @param shopCnpj the shop's own CNPJ, used to tell sales from expenses; empty if not configured
+     */
+    public ExtractionMapper(ReceiptValidator validator, Optional<Cnpj> shopCnpj) {
         this.validator = validator;
+        this.shopCnpj = shopCnpj;
     }
 
     public ExtractionResult map(ReceiptFields fields) {
@@ -67,7 +77,57 @@ public class ExtractionMapper {
         };
         receipt.ifPresent(r -> issues.addAll(validator.validate(r)));
 
-        return new ExtractionResult(fields, receipt, parseCategory(fields.category(), issues), issues);
+        var payment = parsePayment(fields, type, issues);
+        var direction = parseDirection(fields, issues);
+        return new ExtractionResult(fields, receipt, parseCategory(fields.category(), issues), payment, direction,
+                issues);
+    }
+
+    private static Optional<Payment> parsePayment(ReceiptFields fields, ReceiptType type,
+                                                  List<ValidationIssue> issues) {
+        int before = issues.size();
+        LocalTime time = parseIfPresent("time", fields.time(), ExtractionMapper::parseTime, issues);
+        PaymentMethod method = parseIfPresent("paymentMethod", fields.paymentMethod(),
+                raw -> parseEnum(PaymentMethod.class, raw, "Payment method"), issues);
+        Integer installments = parseIfPresent("installments", fields.installments(),
+                ExtractionMapper::parseInstallments, issues);
+        CardBrand brand = parseCardBrand(fields.cardBrand(), issues);
+
+        if (type == ReceiptType.PIX) {
+            if (method == null) {
+                method = PaymentMethod.PIX;
+            } else if (method != PaymentMethod.PIX) {
+                issues.add(error("paymentMethod", "A Pix receipt is paid by Pix"));
+            }
+        } else if (type == ReceiptType.CARD && (method == null || !method.isCard())) {
+            issues.add(error("paymentMethod", "A card receipt is paid by credit or debit"));
+        }
+        if (installments != null && installments > 1 && method != PaymentMethod.CREDIT) {
+            issues.add(error("installments", "Only credit can be paid in installments"));
+        }
+        if (issues.subList(before, issues.size()).stream().anyMatch(ValidationIssue::isError)) {
+            return Optional.empty();
+        }
+        return Optional.of(new Payment(time, method, installments == null ? 1 : installments, brand));
+    }
+
+    // Typed by a person on review; otherwise the shop's CNPJ tells: if the shop received the money, it is a sale.
+    // A CPF or a missing tax ID says nothing, so a person has to choose.
+    private Direction parseDirection(ReceiptFields fields, List<ValidationIssue> issues) {
+        if (fields.direction() != null && !fields.direction().isBlank()) {
+            return parse("direction", fields.direction(), raw -> parseEnum(Direction.class, raw, "Direction"), issues);
+        }
+        var counterpartyCnpj = cnpjOrEmpty(fields.taxId());
+        if (shopCnpj.isPresent() && counterpartyCnpj.isPresent()) {
+            return counterpartyCnpj.equals(shopCnpj) ? Direction.SALE : Direction.EXPENSE;
+        }
+        issues.add(error("direction", "Choose whether the shop received or paid this money"));
+        return null;
+    }
+
+    private static <T> T parseIfPresent(String field, String raw, Function<String, T> parser,
+                                        List<ValidationIssue> issues) {
+        return raw == null || raw.isBlank() ? null : parse(field, raw, parser, issues);
     }
 
     private static <T> T parse(String field, String raw, Function<String, T> parser, List<ValidationIssue> issues) {
@@ -81,11 +141,6 @@ public class ExtractionMapper {
             issues.add(error(field, e.getMessage()));
             return null;
         }
-    }
-
-    private static <T> T parseIfPresent(String field, String raw, Function<String, T> parser,
-                                        List<ValidationIssue> issues) {
-        return raw == null || raw.isBlank() ? null : parse(field, raw, parser, issues);
     }
 
     private static Optional<Receipt> buildIfValid(List<ValidationIssue> issues, Supplier<Receipt> receipt) {
@@ -105,6 +160,59 @@ public class ExtractionMapper {
             return LocalDate.parse(raw);
         } catch (DateTimeParseException _) {
             throw new InvalidValueException("Date must be yyyy-MM-dd, got: " + raw);
+        }
+    }
+
+    // HH:mm or HH:mm:ss, as printed
+    private static LocalTime parseTime(String raw) {
+        try {
+            return LocalTime.parse(raw);
+        } catch (DateTimeParseException _) {
+            throw new InvalidValueException("Time must be HH:mm, got: " + raw);
+        }
+    }
+
+    // "3", "3x" or "03"
+    private static int parseInstallments(String raw) {
+        String digits = raw.toLowerCase().replace("x", "").strip();
+        int installments;
+        try {
+            installments = Integer.parseInt(digits);
+        } catch (NumberFormatException _) {
+            throw new InvalidValueException("Installments must be a number, got: " + raw);
+        }
+        if (installments < 1 || installments > Payment.MAX_INSTALLMENTS) {
+            throw new InvalidValueException("Installments must be between 1 and " + Payment.MAX_INSTALLMENTS);
+        }
+        return installments;
+    }
+
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String raw, String label) {
+        try {
+            return Enum.valueOf(type, raw.strip().toUpperCase());
+        } catch (IllegalArgumentException _) {
+            throw new InvalidValueException(label + " not recognized: " + raw);
+        }
+    }
+
+    // Like the category, an unknown brand is not worth blocking a receipt for
+    private static CardBrand parseCardBrand(String raw, List<ValidationIssue> issues) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return CardBrand.valueOf(raw.strip().toUpperCase());
+        } catch (IllegalArgumentException _) {
+            issues.add(warning("cardBrand", "Card brand not recognized, using OTHER: " + raw));
+            return CardBrand.OTHER;
+        }
+    }
+
+    private static Optional<Cnpj> cnpjOrEmpty(String raw) {
+        try {
+            return raw == null || raw.isBlank() ? Optional.empty() : Optional.of(new Cnpj(raw.strip()));
+        } catch (InvalidValueException _) {
+            return Optional.empty();
         }
     }
 

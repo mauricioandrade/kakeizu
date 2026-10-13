@@ -6,13 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
+import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
+import dev.mauricioandrade.kakeizu.domain.model.Direction;
+import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.NfeAccessKey;
+import dev.mauricioandrade.kakeizu.domain.model.Payment;
+import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.PixEndToEndId;
 import dev.mauricioandrade.kakeizu.domain.model.PixReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Receipt;
@@ -25,9 +30,13 @@ import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,8 +47,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 class PanacheReceiptRepositoryTest {
 
     static final LocalDate DAY = LocalDate.of(2022, 8, 12);
+    static final Payment CREDIT_5X_AT_NOON = new Payment(LocalTime.NOON, PaymentMethod.CREDIT, 5, CardBrand.VISA);
     static final ReceiptFields INVALID_FIELDS = new ReceiptFields("NFCE", "146.46", "2020-01-01", "LOJA RUA",
-            "0000000000000000000000000000000", null, "GOODS");
+            "0000000000000000000000000000000", null, "GOODS", null, null, null, null, null);
 
     private final ReceiptRepository repository;
 
@@ -90,7 +100,7 @@ class PanacheReceiptRepositoryTest {
         var first = pending(INVALID_FIELDS, Instant.now());
         repository.save(first);
         var sameImage = new ReceiptRecord(UUID.randomUUID(), ReceiptStatus.PENDING_REVIEW, INVALID_FIELDS, Category.OTHER,
-                first.confirmedReceipt(), first.imageSha256(), "image/png", null, Instant.now());
+                first.confirmation(), first.imageSha256(), "image/png", null, Instant.now());
 
         var e = assertThrows(DuplicateReceiptException.class, () -> repository.save(sameImage));
         assertEquals("This image was already uploaded", e.getMessage());
@@ -106,7 +116,7 @@ class PanacheReceiptRepositoryTest {
 
         assertTrue(repository.findConfirmedByUniqueId(ReceiptType.PIX, "E00416968202208120422Mmzi9rPYPLT").isPresent());
         assertThrows(DuplicateReceiptException.class,
-                () -> repository.save(secondPhotoOfTheSamePix.confirm(INVALID_FIELDS, pix, Category.OTHER)));
+                () -> repository.save(secondPhotoOfTheSamePix.confirm(valid(pix, Payment.unknown(), Direction.SALE))));
     }
 
     @Test
@@ -141,6 +151,38 @@ class PanacheReceiptRepositoryTest {
     }
 
     @Test
+    void paymentAndDirectionRoundTripIncludingWhatIsUnknown() {
+        var card = new CardReceipt(new Money("13"), DAY, "L P Trabalhador", null, "375579");
+        var debit = new Payment(LocalTime.of(20, 59), PaymentMethod.DEBIT, 1, CardBrand.VISA);
+        var nothingShown = Payment.unknown();
+
+        var first = confirm(pending(INVALID_FIELDS, Instant.now()), card, debit, Direction.SALE);
+        var second = confirm(pending(INVALID_FIELDS, Instant.now()), card, nothingShown, Direction.EXPENSE);
+
+        assertEquals(first.confirmation(), repository.findById(first.id()).orElseThrow().confirmation());
+        assertEquals(second.confirmation(), repository.findById(second.id()).orElseThrow().confirmation());
+    }
+
+    @Test
+    void salesQueryKeepsSalesInTheRangeBothEndsIncluded() {
+        // Far from DAY: other tests commit confirmed receipts on it
+        var first = LocalDate.of(2019, 4, 1);
+        var last = LocalDate.of(2019, 4, 30);
+        var sale = confirmOn(first, Direction.SALE);
+        var lastDaySale = confirmOn(last, Direction.SALE);
+        confirmOn(first, Direction.EXPENSE);
+        confirmOn(last.plusDays(1), Direction.SALE);
+
+        assertEquals(Set.of(sale.id(), lastDaySale.id()), repository.findConfirmedSalesIssuedBetween(first, last).stream()
+                .map(ReceiptRecord::id).collect(Collectors.toSet()));
+    }
+
+    private ReceiptRecord confirmOn(LocalDate day, Direction direction) {
+        var card = new CardReceipt(new Money("10"), day, "Loja", new Cnpj("69.034.668/0001-56"), null);
+        return confirm(pending(INVALID_FIELDS, Instant.now()), card, CREDIT_5X_AT_NOON, direction);
+    }
+
+    @Test
     void queryParametersAreNotInterpretedAsSql() {
         repository.save(pending(INVALID_FIELDS, Instant.now()));
 
@@ -149,10 +191,19 @@ class PanacheReceiptRepositoryTest {
     }
 
     private ReceiptRecord confirm(ReceiptRecord pending, Receipt receipt) {
+        return confirm(pending, receipt, CREDIT_5X_AT_NOON, Direction.SALE);
+    }
+
+    private ReceiptRecord confirm(ReceiptRecord pending, Receipt receipt, Payment payment, Direction direction) {
         repository.save(pending);
-        var confirmed = pending.confirm(pending.fields(), receipt, Category.GOODS);
+        var confirmed = pending.confirm(valid(receipt, payment, direction));
         repository.save(confirmed);
         return confirmed;
+    }
+
+    private static ExtractionResult valid(Receipt receipt, Payment payment, Direction direction) {
+        return new ExtractionResult(INVALID_FIELDS, Optional.of(receipt), Category.GOODS, Optional.of(payment),
+                direction, List.of());
     }
 
     private static ReceiptRecord pending(ReceiptFields fields, Instant createdAt) {

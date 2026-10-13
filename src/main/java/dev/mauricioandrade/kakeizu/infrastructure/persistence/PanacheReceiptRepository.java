@@ -5,15 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
+import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.NfeAccessKey;
+import dev.mauricioandrade.kakeizu.domain.model.Payment;
 import dev.mauricioandrade.kakeizu.domain.model.PixEndToEndId;
 import dev.mauricioandrade.kakeizu.domain.model.PixReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Receipt;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
+import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord.Confirmation;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptRepository;
@@ -80,6 +83,13 @@ public class PanacheReceiptRepository implements ReceiptRepository {
                 .stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public List<ReceiptRecord> findConfirmedSalesIssuedBetween(LocalDate from, LocalDate to) {
+        return ReceiptEntity.<ReceiptEntity>list("status = ?1 and direction = ?2 and issuedOn between ?3 and ?4",
+                        ReceiptStatus.CONFIRMED, Direction.SALE, from, to)
+                .stream().map(this::toDomain).toList();
+    }
+
     private void copy(ReceiptRecord receipt, ReceiptEntity entity) {
         entity.id = receipt.id();
         entity.status = receipt.status();
@@ -89,10 +99,20 @@ public class PanacheReceiptRepository implements ReceiptRepository {
         entity.imageContentType = receipt.imageContentType();
         entity.rawModelOutput = receipt.rawModelOutput();
         entity.createdAt = receipt.createdAt();
-        receipt.confirmedReceipt().ifPresentOrElse(r -> copyConfirmed(r, entity), () -> clearConfirmed(entity));
+        receipt.confirmation().ifPresentOrElse(c -> copyConfirmed(c, entity), () -> clearConfirmed(entity));
     }
 
-    private static void copyConfirmed(Receipt receipt, ReceiptEntity entity) {
+    private static void copyConfirmed(Confirmation confirmation, ReceiptEntity entity) {
+        var payment = confirmation.payment();
+        entity.issuedTime = payment.time();
+        entity.paymentMethod = payment.method();
+        entity.installments = (short) payment.installments();
+        entity.cardBrand = payment.brand();
+        entity.direction = confirmation.direction();
+        copyReceipt(confirmation.receipt(), entity);
+    }
+
+    private static void copyReceipt(Receipt receipt, ReceiptEntity entity) {
         entity.amount = receipt.amount().value();
         entity.issuedOn = receipt.issuedOn();
         entity.counterparty = receipt.counterparty();
@@ -116,12 +136,24 @@ public class PanacheReceiptRepository implements ReceiptRepository {
         entity.issuedOn = null;
         entity.counterparty = null;
         setIdentity(entity, null, null, null);
+        entity.issuedTime = null;
+        entity.paymentMethod = null;
+        entity.installments = null;
+        entity.cardBrand = null;
+        entity.direction = null;
     }
 
     private ReceiptRecord toDomain(ReceiptEntity entity) {
         return new ReceiptRecord(entity.id, entity.status, fromJson(entity.fields), entity.category,
-                Optional.ofNullable(entity.type).map(_ -> toReceipt(entity)),
+                Optional.ofNullable(entity.type).map(_ -> toConfirmation(entity)),
                 entity.imageSha256, entity.imageContentType, entity.rawModelOutput, entity.createdAt);
+    }
+
+    // Receipts confirmed before V2 have no payment columns
+    private static Confirmation toConfirmation(ReceiptEntity entity) {
+        var payment = entity.installments == null ? Payment.unknown()
+                : new Payment(entity.issuedTime, entity.paymentMethod, entity.installments, entity.cardBrand);
+        return new Confirmation(toReceipt(entity), payment, entity.direction);
     }
 
     private static Receipt toReceipt(ReceiptEntity entity) {

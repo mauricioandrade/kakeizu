@@ -42,7 +42,7 @@ public class ConfirmReceiptService implements ConfirmReceiptUseCase {
             return new ConfirmResult.Invalid(withIssue(result, ValidationIssue.error("uniqueId",
                     "A receipt with this identifier was already confirmed")));
         }
-        var confirmed = stored.confirm(correctedFields, receipt, result.category());
+        var confirmed = stored.confirm(result);
         repository.save(confirmed);
         LOG.infof("Receipt %s confirmed", id);
         return new ConfirmResult.Confirmed(confirmed);
@@ -58,6 +58,7 @@ public class ConfirmReceiptService implements ConfirmReceiptUseCase {
     private static ExtractionResult withIssue(ExtractionResult result, ValidationIssue issue) {
         var issues = new ArrayList<>(result.issues());
         issues.add(issue);
-        return new ExtractionResult(result.fields(), result.receipt(), result.category(), issues);
+        return new ExtractionResult(result.fields(), result.receipt(), result.category(), result.payment(),
+                result.direction(), issues);
     }
 }

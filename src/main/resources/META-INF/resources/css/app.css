@@ -121,3 +121,9 @@ td { text-align: right; font-variant-numeric: tabular-nums; }
     .review { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
     .review figure { position: sticky; top: 1rem; }
 }
+
+/* Sales report: label, bar, amount */
+table.bars th { width: 40%; }
+table.bars td:nth-child(2) { width: 35%; padding: 0 .5rem; }
+meter { width: 100%; height: .9rem; }
+.bar nav { flex-wrap: wrap; }

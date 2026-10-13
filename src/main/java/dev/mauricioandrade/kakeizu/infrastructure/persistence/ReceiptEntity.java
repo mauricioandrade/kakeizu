@@ -1,6 +1,9 @@
 package dev.mauricioandrade.kakeizu.infrastructure.persistence;
 
+import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
+import dev.mauricioandrade.kakeizu.domain.model.Direction;
+import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
@@ -13,6 +16,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -55,4 +59,17 @@ public class ReceiptEntity extends PanacheEntityBase {
     public String taxId;
 
     public String uniqueId;
+
+    public LocalTime issuedTime;
+
+    @Enumerated(EnumType.STRING)
+    public PaymentMethod paymentMethod;
+
+    public Short installments;
+
+    @Enumerated(EnumType.STRING)
+    public CardBrand cardBrand;
+
+    @Enumerated(EnumType.STRING)
+    public Direction direction;
 }

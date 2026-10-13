@@ -1,0 +1,72 @@
+{#include base}
+{#title}Kakeizu · Sales{/title}
+<section class="card">
+    <h1>Sales</h1>
+    <form method="get" action="/report" class="inline">
+        <label for="from">From</label>
+        <input id="from" name="from" type="date" value="{report.from}" required>
+        <label for="to">to</label>
+        <input id="to" name="to" type="date" value="{report.to}" required>
+        <button type="submit" class="secondary">Show</button>
+    </form>
+    <p class="total">{report.total.brl}</p>
+    <p class="muted">{report.count} sale{#if report.count != 1}s{/if} confirmed from {report.from} to {report.to}</p>
+    {#if report.pairedDocuments > 0}
+    <p class="muted">{report.pairedDocuments} NFC-e/NF-e matched a card slip or Pix receipt and {#if report.pairedDocuments == 1}was{#else}were{/if} counted once.</p>
+    {/if}
+</section>
+
+{#if report.count > 0}
+{#let total=report.total}
+<section class="card">
+    <h2>By time of day</h2>
+    {#if report.byHour}
+    <table class="bars">
+        {#for entry in report.byHour.entrySet}
+        <tr><th scope="row">{entry.key.hourRange}</th><td><meter min="0" max="100" value="{entry.value.percentOf(total)}"></meter></td><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+    {/if}
+    {#if report.withoutTime > 0}
+    <p class="muted">{report.withoutTime} sale{#if report.withoutTime != 1}s{/if} without a time on the receipt.</p>
+    {/if}
+</section>
+<section class="card">
+    <h2>By day of the week</h2>
+    <table class="bars">
+        {#for entry in report.byWeekday.entrySet}
+        <tr><th scope="row">{entry.key.label}</th><td><meter min="0" max="100" value="{entry.value.percentOf(total)}"></meter></td><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+</section>
+<section class="card">
+    <h2>By payment method</h2>
+    <table class="bars">
+        {#for entry in report.byMethod.entrySet}
+        <tr><th scope="row">{entry.key.label}</th><td><meter min="0" max="100" value="{entry.value.percentOf(total)}"></meter></td><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+</section>
+{#if report.byInstallments}
+<section class="card">
+    <h2>Credit: upfront or in installments</h2>
+    <table class="bars">
+        {#for entry in report.byInstallments.entrySet}
+        <tr><th scope="row">{entry.key.installmentsLabel}</th><td><meter min="0" max="100" value="{entry.value.percentOf(total)}"></meter></td><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+</section>
+{/if}
+{#if report.byBrand}
+<section class="card">
+    <h2>By card brand</h2>
+    <table class="bars">
+        {#for entry in report.byBrand.entrySet}
+        <tr><th scope="row">{entry.key.label}</th><td><meter min="0" max="100" value="{entry.value.percentOf(total)}"></meter></td><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+</section>
+{/if}
+{/let}
+{/if}
+{/include}

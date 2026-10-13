@@ -56,7 +56,7 @@ class ReceiptWebFlowTest {
 
     @Test
     void uploadGoesToReviewWhereWhatIsWrongIsHighlighted() {
-        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId + "X", "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId + "X", "OTHER", null, null, null, null, null));
 
         String review = upload(uniquePng());
 
@@ -69,7 +69,7 @@ class ReceiptWebFlowTest {
 
     @Test
     void confirmedReceiptShowsUpInTheSummaryOfItsDay() {
-        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId + "X", "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId + "X", "OTHER", null, null, null, null, null));
         String review = upload(uniquePng());
 
         user().formParams(fields("PIX", "1.234,56", "Pagsmile", pixId, "SERVICES"))
@@ -84,8 +84,31 @@ class ReceiptWebFlowTest {
     }
 
     @Test
+    void confirmedSaleShowsUpInTheSalesReportByTimeAndMethod() {
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", "14:05", null, null,
+                null, null));
+        String review = upload(uniquePng());
+
+        user().formParams(fields("PIX", "80,00", "Pagsmile", pixId, "OTHER"))
+                .when().post(review.replace("/review", "/confirm"))
+                .then().statusCode(303);
+
+        user().queryParam("from", date).queryParam("to", date).when().get("/report")
+                .then().statusCode(200)
+                .body(containsString("1 sale confirmed"))
+                .body(containsString("14:00–14:59"))
+                .body(containsString("<meter min=\"0\" max=\"100\" value=\"100\">"));
+    }
+
+    @Test
+    void reportWithTheRangeBackwardsIsABadRequest() {
+        user().queryParam("from", "2026-10-13").queryParam("to", "2026-10-01").when().get("/report")
+                .then().statusCode(400).body(containsString("end date is before"));
+    }
+
+    @Test
     void invalidCorrectionShowsTheFormAgainWithWhatWasTyped() {
-        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
         String review = upload(uniquePng());
 
         user().formParams(fields("PIX", "eighty", "Typed by hand", pixId, "OTHER"))
@@ -97,7 +120,7 @@ class ReceiptWebFlowTest {
 
     @Test
     void rejectedReceiptCannotBeConfirmedLater() {
-        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
         String review = upload(uniquePng());
 
         user().when().post(review.replace("/review", "/reject")).then().statusCode(303);
@@ -110,7 +133,7 @@ class ReceiptWebFlowTest {
 
     @Test
     void sameImageTwiceOpensTheExistingReceiptWithoutCallingTheModelAgain() {
-        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
         byte[] image = uniquePng();
 
         String first = upload(image);
@@ -161,7 +184,7 @@ class ReceiptWebFlowTest {
     @Test
     void textFromTheImageIsEscapedNotExecuted() {
         // A receipt image can carry any text, and the model will happily copy it
-        modelReads(new ReceiptFields("PIX", "80.00", date, "<script>alert('pwned')</script>", null, pixId, "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "<script>alert('pwned')</script>", null, pixId, "OTHER", null, null, null, null, null));
 
         user().when().get(upload(uniquePng()))
                 .then().statusCode(200)
@@ -171,7 +194,7 @@ class ReceiptWebFlowTest {
 
     @Test
     void imageIsServedWithTheTypeDetectedFromItsBytes() {
-        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER"));
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
         byte[] image = uniquePng();
 
         // The client claims JPEG; the bytes say PNG
@@ -217,8 +240,9 @@ class ReceiptWebFlowTest {
 
     private Map<String, String> fields(String type, String amount, String counterparty, String uniqueId,
                                        String category) {
+        // No shop CNPJ in tests and no CNPJ on these Pix: the person says it is a sale
         return Map.of("type", type, "amount", amount, "date", date, "counterparty", counterparty,
-                "taxId", "", "uniqueId", uniqueId, "category", category);
+                "taxId", "", "uniqueId", uniqueId, "category", category, "time", "14:05", "direction", "SALE");
     }
 
     private static byte[] uniquePng() {

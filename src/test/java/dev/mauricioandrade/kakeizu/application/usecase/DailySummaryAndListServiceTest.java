@@ -32,9 +32,9 @@ class DailySummaryAndListServiceTest {
         confirmed(PIX_CORRECTED);                                      // 80.00   PIX  SERVICES
         confirmed(NFCE);                                               // 146.46  NFCE GOODS
         confirmed(CARD);                                               // 500.00  CARD FUEL_SUPPLY
-        confirmed(new ReceiptFields("CARD", "20,00", "2022-08-12", "Loja", "69.034.668/0001-56", null, "GOODS"));
+        confirmed(new ReceiptFields("CARD", "20,00", "2022-08-12", "Loja", "69.034.668/0001-56", null, "GOODS", null, "CREDIT", null, null, null));
         stored(PIX_AS_READ, Instant.now());                            // pending: ignored
-        confirmed(new ReceiptFields("CARD", "999", "2022-08-13", "Loja", "69.034.668/0001-56", null, "GOODS")); // other day
+        confirmed(new ReceiptFields("CARD", "999", "2022-08-13", "Loja", "69.034.668/0001-56", null, "GOODS", null, "CREDIT", null, null, null)); // other day
 
         var result = summary.summarize(DAY);
 

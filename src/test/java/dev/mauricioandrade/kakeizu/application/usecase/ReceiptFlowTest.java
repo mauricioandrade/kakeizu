@@ -34,7 +34,7 @@ class ReceiptFlowTest {
     // A day no other test uses, since this test commits its data
     static final LocalDate DAY = LocalDate.of(2021, 5, 4);
     static final ReceiptFields AS_READ = new ReceiptFields("PIX", "80.00", "2021-05-04", "Pagsmile", null,
-            "E00416968202105040422Mzmiz9rPYPLT", "OTHER");
+            "E00416968202105040422Mzmiz9rPYPLT", "OTHER", null, null, null, null, null);
 
     @InjectMock
     ReceiptReader reader;
@@ -64,7 +64,7 @@ class ReceiptFlowTest {
         assertFalse(review.review(id).result().isValid());
 
         var corrected = new ReceiptFields("PIX", "80,00", "2021-05-04", "Pagsmile", null,
-                "E00416968202105040422Mmzi9rPYPLT", "SERVICES");
+                "E00416968202105040422Mmzi9rPYPLT", "SERVICES", null, null, null, null, "SALE");
         var confirmed = assertInstanceOf(ConfirmResult.Confirmed.class, confirm.confirm(id, corrected));
         assertEquals(ReceiptStatus.CONFIRMED, confirmed.receipt().status());
 

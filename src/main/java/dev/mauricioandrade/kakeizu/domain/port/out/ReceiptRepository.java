@@ -30,4 +30,9 @@ public interface ReceiptRepository {
     List<ReceiptRecord> findCreatedBetween(Instant from, Instant to);
 
     List<ReceiptRecord> findConfirmedIssuedOn(LocalDate day);
+
+    /**
+     * Confirmed sales issued from {@code from} to {@code to}, both inclusive.
+     */
+    List<ReceiptRecord> findConfirmedSalesIssuedBetween(LocalDate from, LocalDate to);
 }

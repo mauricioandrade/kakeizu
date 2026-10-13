@@ -4,10 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The fields as read, the receipt built from them (absent if any field has an error) and every issue found.
+ * The fields as read, the receipt and payment built from them (absent if any field has an error), whether it
+ * is a sale or an expense (null if unknown) and every issue found.
  */
 public record ExtractionResult(ReceiptFields fields, Optional<Receipt> receipt, Category category,
-                               List<ValidationIssue> issues) {
+                               Optional<Payment> payment, Direction direction, List<ValidationIssue> issues) {
 
     public ExtractionResult {
         issues = List.copyOf(issues);

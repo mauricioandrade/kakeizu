@@ -25,6 +25,8 @@ public interface ReceiptExtractionService {
             - amount: the total paid (VALOR TOTAL, VALOR PAGO, the value of the Pix, the amount on the card slip),
               never the price of a single item. Digits with dot as decimal separator, e.g. 1234.56
             - date: payment or issue date as yyyy-MM-dd
+            - time: time of that same payment or issue as HH:mm (24 hours). Date and time are often printed together
+              at the top, e.g. "12/08/2022 • 14:05" is date 2022-08-12 and time 14:05
             - counterparty: who received the money: the issuer named at the top of an NF-e/NFC-e, the store name on
               a card slip, or the receiver ("Quem recebeu") of a Pix. Never the payer, the consumer (CONSUMIDOR),
               the cardholder, or a card network or machine brand (Stone, Cielo, Mastercard, Visa)
@@ -32,6 +34,11 @@ public interface ReceiptExtractionService {
             - uniqueId: NF-e access key (44 digits), Pix transaction ID (32 characters starting with E),
               or authorization code (AUT) on a card slip
             - suggestedCategory: FUEL_SUPPLY, GOODS, SERVICES, UTILITIES, PAYROLL or OTHER
+            - paymentMethod: CASH, CREDIT, DEBIT, PIX or OTHER. On an NF-e/NFC-e, read "Forma de pagamento"
+              (Dinheiro is CASH, Cartão de Crédito is CREDIT, Cartão de Débito is DEBIT)
+            - installments: number of installments ("5X SEM JUROS" is 5, "parcelado em 3" is 3); 1 if paid at once
+              ("à vista")
+            - cardBrand: VISA, MASTERCARD, ELO, AMEX, HIPERCARD or OTHER, only for card payments
             """)
     @UserMessage("Extract the receipt data from this image.")
     ExtractedReceipt extract(@ImageUrl Image image);
