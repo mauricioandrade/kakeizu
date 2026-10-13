@@ -134,9 +134,14 @@ class ReceiptWebFlowTest {
     void oversizedUploadIsRefused() {
         byte[] huge = Arrays.copyOf(PNG_SIGNATURE, 11 * 1024 * 1024);
 
-        user().multiPart("image", "receipt.png", huge, "image/png")
-                .when().post("/receipts")
-                .then().statusCode(413);
+        try {
+            user().multiPart("image", "receipt.png", huge, "image/png")
+                    .when().post("/receipts")
+                    .then().statusCode(413);
+        } catch (Exception _) {
+            // The server may close the connection before the client finishes sending: refused all the same.
+            // A wrong status code is an AssertionError, not an Exception, so it still fails the test
+        }
 
         verifyNoInteractions(reader);
     }
