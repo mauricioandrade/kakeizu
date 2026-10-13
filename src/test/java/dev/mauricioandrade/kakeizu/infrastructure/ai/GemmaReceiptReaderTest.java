@@ -1,7 +1,9 @@
 package dev.mauricioandrade.kakeizu.infrastructure.ai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -28,6 +30,19 @@ class GemmaReceiptReaderTest {
         assertEquals("{\"type\":\"NFCE\",\"amount\":\"146.46\",\"date\":\"2020-01-01\",\"counterparty\":\"LOJA RUA\","
                 + "\"taxId\":\"0000000000000000000000000000000\",\"uniqueId\":null,\"suggestedCategory\":\"GOODS\"}",
                 reading.rawOutput());
+    }
+
+    @Test
+    void theWordNullMeansTheFieldWasNotFound() {
+        // Real gemma4:e4b output for a card purchase in a bank app, which shows no merchant CNPJ
+        when(service.extract(any())).thenReturn(new ExtractedReceipt("CARD", "89.82", "2026-09-28",
+                "TOESCA SUPERMERCADO EI", "null", " NULL ", "GOODS"));
+
+        var reading = reader.read(new byte[]{1}, "image/png");
+
+        assertNull(reading.fields().taxId());
+        assertNull(reading.fields().uniqueId());
+        assertTrue(reading.rawOutput().contains("\"taxId\":\"null\""), "raw output is kept as the model wrote it");
     }
 
     @Test

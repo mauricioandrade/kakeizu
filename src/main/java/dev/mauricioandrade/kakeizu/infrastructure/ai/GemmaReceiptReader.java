@@ -66,8 +66,15 @@ public class GemmaReceiptReader implements ReceiptReader {
     }
 
     private static ReceiptFields toFields(ExtractedReceipt extracted) {
-        return new ReceiptFields(extracted.type(), extracted.amount(), extracted.date(), extracted.counterparty(),
-                extracted.taxId(), extracted.uniqueId(), extracted.suggestedCategory());
+        return new ReceiptFields(absentToNull(extracted.type()), absentToNull(extracted.amount()),
+                absentToNull(extracted.date()), absentToNull(extracted.counterparty()), absentToNull(extracted.taxId()),
+                absentToNull(extracted.uniqueId()), absentToNull(extracted.suggestedCategory()));
+    }
+
+    // The JSON schema LangChain4j sends only allows strings, and Ollama enforces it as a grammar: the model
+    // cannot answer null, so it writes the word "null" instead
+    private static String absentToNull(String value) {
+        return value == null || value.isBlank() || value.strip().equalsIgnoreCase("null") ? null : value;
     }
 
     private String toJson(ExtractedReceipt extracted) {
