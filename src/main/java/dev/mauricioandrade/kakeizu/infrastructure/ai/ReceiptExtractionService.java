@@ -19,7 +19,9 @@ public interface ReceiptExtractionService {
             If a label is printed with no value after it, the field is null.
 
             Fields:
-            - type: NFE, NFCE, PIX, CARD or UNKNOWN. A card machine slip is CARD, not NFCE
+            - type: NFE, NFCE, PIX, CARD or UNKNOWN. A card machine slip is CARD, not NFCE.
+              A bank app receipt is PIX only if it says Pix; a card purchase (Crédito, Débito, a card number
+              like •••• 1234, a código de autorização) is CARD. Boletos, bill payments and anything else are UNKNOWN
             - amount: the total paid (VALOR TOTAL, VALOR PAGO, the value of the Pix, the amount on the card slip),
               never the price of a single item. Digits with dot as decimal separator, e.g. 1234.56
             - date: payment or issue date as yyyy-MM-dd
