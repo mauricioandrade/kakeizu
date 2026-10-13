@@ -9,20 +9,33 @@ import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptReader;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Base64;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+/**
+ * One GPU, one model: readings beyond {@code kakeizu.ai.max-concurrent-readings} wait in line instead of
+ * piling up on Ollama, and give up if the line does not move.
+ */
 @ApplicationScoped
 public class GemmaReceiptReader implements ReceiptReader {
 
+    private static final long MAX_WAIT_SECONDS = 120;
+
     private final ReceiptExtractionService extractionService;
     private final ObjectMapper objectMapper;
+    private final Semaphore modelSlots;
 
-    public GemmaReceiptReader(ReceiptExtractionService extractionService, ObjectMapper objectMapper) {
+    public GemmaReceiptReader(ReceiptExtractionService extractionService, ObjectMapper objectMapper,
+                              @ConfigProperty(name = "kakeizu.ai.max-concurrent-readings") int maxConcurrentReadings) {
         this.extractionService = extractionService;
         this.objectMapper = objectMapper;
+        this.modelSlots = new Semaphore(maxConcurrentReadings, true);
     }
 
     @Override
     public ModelReading read(byte[] image, String contentType) {
+        acquireModelSlot();
         ExtractedReceipt extracted;
         try {
             extracted = extractionService.extract(Image.builder()
@@ -31,8 +44,21 @@ public class GemmaReceiptReader implements ReceiptReader {
                     .build());
         } catch (RuntimeException e) {
             throw new ReceiptReadingException("The model could not read the receipt", e);
+        } finally {
+            modelSlots.release();
         }
         return new ModelReading(toFields(extracted), toJson(extracted));
+    }
+
+    private void acquireModelSlot() {
+        try {
+            if (!modelSlots.tryAcquire(MAX_WAIT_SECONDS, TimeUnit.SECONDS)) {
+                throw new ReceiptReadingException("The model is busy with other receipts", null);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ReceiptReadingException("Interrupted while waiting for the model", e);
+        }
     }
 
     private static ReceiptFields toFields(ExtractedReceipt extracted) {

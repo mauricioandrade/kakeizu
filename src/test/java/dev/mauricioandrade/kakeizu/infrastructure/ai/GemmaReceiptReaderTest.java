@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class GemmaReceiptReaderTest {
 
     final ReceiptExtractionService service = mock(ReceiptExtractionService.class);
-    final GemmaReceiptReader reader = new GemmaReceiptReader(service, new ObjectMapper());
+    final GemmaReceiptReader reader = new GemmaReceiptReader(service, new ObjectMapper(), 1);
 
     @Test
     void passesTheModelOutputThroughUntouched() {
@@ -35,5 +35,15 @@ class GemmaReceiptReaderTest {
         when(service.extract(any())).thenThrow(new RuntimeException("Connection refused"));
 
         assertThrows(ReceiptReadingException.class, () -> reader.read(new byte[]{1}, "image/png"));
+    }
+
+    @Test
+    void aFailedReadingFreesTheModelForTheNextOne() {
+        when(service.extract(any()))
+                .thenThrow(new RuntimeException("Connection refused"))
+                .thenReturn(new ExtractedReceipt("PIX", "1.00", null, null, null, null, null));
+
+        assertThrows(ReceiptReadingException.class, () -> reader.read(new byte[]{1}, "image/png"));
+        assertEquals("PIX", reader.read(new byte[]{1}, "image/png").fields().type());
     }
 }
