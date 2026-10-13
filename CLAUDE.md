@@ -139,6 +139,12 @@ public record CardReceipt(Money amount, LocalDate issuedOn, String counterparty,
                           Cnpj merchantCnpj, String authorizationCode) implements Receipt {}
 ```
 
+Fase 7 (decidido com o usuário): cada comprovante confirmado também guarda `Payment(time, method, installments, brand)`
+(`PaymentMethod`: CASH, CREDIT, DEBIT, PIX, OTHER; `CardBrand`: VISA, MASTERCARD, ELO, AMEX, HIPERCARD, OTHER) e
+`Direction` (SALE/EXPENSE). Regras: Pix é sempre PIX; cartão é CREDIT ou DEBIT; só crédito parcela (1–24); bandeira só
+em cartão. Venda/gasto vem do CNPJ da loja (`KAKEIZU_SHOP_CNPJ`): quem recebeu foi a loja → venda; outro CNPJ → gasto;
+sem CNPJ ou com CPF → a pessoa escolhe. Migration `V2__add_payment_details.sql`.
+
 Entidade persistida: `ReceiptRecord` com `id`, `type`, campos acima, `category`, `status` (`PENDING_REVIEW`, `CONFIRMED`, `REJECTED`), `imageSha256`, `rawModelOutput` (JSON, para depuração e para o post), `createdAt`.
 
 ### Value objects com validação real
@@ -198,6 +204,7 @@ public interface ReceiptExtractionService {
 | `POST /receipts/{id}/confirm` | Revalida com os dados corrigidos e confirma |
 | `POST /receipts/{id}/reject` | Rejeita |
 | `GET /summary?date=` | Totais do dia por tipo e categoria (só `CONFIRMED`) |
+| `GET /report?from=&to=` | Vendas confirmadas no período: por hora, dia da semana, forma, parcelas e bandeira. NF-e/NFC-e paga com cartão ou Pix é pareada com o slip/Pix de mesmo valor, mesmo dia e até 15 min de diferença e conta uma vez só (fase 7) |
 
 Qute + htmx, sem build de frontend. Visual limpo e legível no celular (o dono do posto vai usar no telefone).
 
