@@ -46,6 +46,17 @@ export KAKEIZU_ADMIN_PASSWORD_HASH='pbkdf2-sha256:600000:...'
 
 Local overrides go in `application-local.properties` (gitignored).
 
+### Keeping the model warm
+
+Ollama unloads an idle model after 5 minutes, and loading `gemma4:e4b` back takes ~16 s on top of the
+reading. Kakeizu asks Ollama to load the model when it starts and whenever the upload page opens, so it is
+usually ready by the time the photo is taken. To keep it loaded all day, set this where Ollama runs
+(on Windows: *System Properties → Environment Variables*, then restart Ollama):
+
+```
+OLLAMA_KEEP_ALIVE=8h
+```
+
 ### HTTPS (using it from a phone)
 
 Dev mode listens on `localhost` only, over plain HTTP. The packaged app (prod profile) listens on the
