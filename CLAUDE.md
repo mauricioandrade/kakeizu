@@ -1,0 +1,252 @@
+# Kakeizu — Leitor de comprovantes com IA local
+
+> **Kakeizu** = *Kakeibo* (家計簿, o caderno japonês de controle de gastos) + *Kakuzu* (o Akatsuki que só pensa em dinheiro).
+> Um leitor de comprovantes para pequenos comerciantes que roda 100% local: a foto entra, os dados saem estruturados, e nada sai da máquina do dono do negócio.
+
+---
+
+## 0. Contexto para o Claude
+
+- Projeto para o **Hacktoberfest Open-Source AI Challenge — Semana 2 (tema "Side Hustle")** do DEV.
+- **Prazo duro:** 18/10/2026, 23h59 PDT. Repositório novo, criado nesta semana.
+- Critério de maior peso é a escrita do post, então o código precisa ser **simples, legível e demonstrável**. Na dúvida, menos é mais.
+- O post e o README serão em inglês. **Todo identificador de código, commit e comentário fica em inglês.** Este documento fica em português.
+- Ambiente do desenvolvedor: **Windows 11 + WSL2**. O projeto roda no WSL; o Ollama pode estar no Windows (ver seção 3).
+
+### Regras de trabalho
+
+1. Siga as fases da seção 9 **em ordem**. Ao fim de cada fase, pare, resuma o que foi feito e aguarde confirmação.
+2. Não adicione dependências fora da seção 2 sem perguntar antes.
+3. Não use preview features do Java salvo onde este documento disser explicitamente.
+4. Sempre que introduzir um recurso novo do Java 25 ou do Quarkus, deixe um bloco `📚 Estudo` curto no PR/resumo da fase explicando o que é e por que foi usado.
+
+---
+
+## 1. Problema e usuário
+
+**Quem paga:** dono ou gerente de pequeno comércio (posto, mercadinho, restaurante) que recebe dezenas de comprovantes por dia e fecha o caixa na mão.
+
+**Dor:** digitar valor, data e fornecedor de cada nota/Pix/cupom numa planilha. Ferramentas na nuvem existem, mas exigem mandar dados financeiros do negócio para servidor de terceiros e cobram por documento.
+
+**Proposta:** tira a foto → Gemma (local) extrai os dados → sistema valida → humano confirma → entra no resumo do dia.
+
+> **Princípio do projeto:** *a IA sugere, o domínio valida, o humano decide.* Nenhum comprovante é confirmado automaticamente.
+
+### Escopo do MVP
+
+- Upload de uma imagem por vez (JPG/PNG)
+- Extração de: tipo, valor, data, nome do emissor/pagador, CNPJ/CPF quando houver, identificador único (chave NF-e ou ID Pix)
+- Tela de revisão com campos editáveis e destaque para o que falhou na validação
+- Resumo do dia: total por tipo e por categoria
+- Detecção de duplicata (mesma imagem ou mesmo identificador único)
+
+### Fora do escopo
+
+Autenticação, multiusuário, integração com SEFAZ, exportação contábil, app mobile, upload em lote (fica como extra opcional na fase 8).
+
+---
+
+## 2. Stack
+
+| Camada | Escolha |
+|---|---|
+| Linguagem | Java 25 (LTS) |
+| Framework | Quarkus — versão estável mais recente (≥ 3.31, primeira com suporte completo a Java 25) |
+| Build | Maven |
+| IA | `quarkus-langchain4j-ollama` + Ollama |
+| Modelo | Gemma multimodal. Default `gemma3:4b`; nome configurável por propriedade. Verifique se há versão mais nova do Gemma com visão no Ollama e use-a se houver |
+| Banco | PostgreSQL + Flyway (`quarkus-jdbc-postgresql`, `quarkus-flyway`, `quarkus-hibernate-orm-panache`) |
+| Web | `quarkus-rest` + `quarkus-rest-qute` + htmx (via `<script>` pinado em versão exata) |
+| Validação | `quarkus-hibernate-validator` |
+| Testes | `quarkus-junit5`, `rest-assured`, `quarkus-junit5-mockito` |
+
+**Sem Lombok. Sem Redis** (não há requisito de cache neste projeto).
+
+---
+
+## 3. Ambiente local
+
+- **Postgres:** use o **Dev Services** do Quarkus no modo dev/test (sobe um container sozinho). Mantenha também um `docker-compose.yml` com `postgres:16-alpine` para rodar fora do modo dev.
+- **Ollama:** dois cenários possíveis, documente ambos no README:
+  - Ollama dentro do WSL → `http://localhost:11434`
+  - Ollama no Windows (melhor uso de GPU) → com `networkingMode=mirrored` no `.wslconfig`, `localhost` funciona; sem isso, use o IP do host Windows
+- A URL do Ollama e o nome do modelo vêm de `application.properties` com override por variável de ambiente (`OLLAMA_BASE_URL`, `KAKEIZU_MODEL`).
+- Segredos e overrides locais em `application-local.properties` (no `.gitignore`).
+- Timeout da chamada ao modelo generoso (60s): primeira inferência local é lenta.
+
+---
+
+## 4. Convenções (adaptadas de Spring para Quarkus)
+
+- Injeção **somente por construtor**, campos `private final`. Construtor único dispensa `@Inject`.
+- Configuração via `@ConfigProperty` **nos parâmetros do construtor** (equivalente ao `@Value` do Spring), ou `@ConfigMapping` com interface para grupos de propriedades.
+- DTOs e value objects como **records**.
+- **`BigDecimal`** para qualquer valor monetário. Nunca `double`.
+- Clean Architecture: o pacote `domain` não importa nada de Quarkus, JPA ou LangChain4j.
+- Exceções de domínio próprias; o handler REST devolve mensagens genéricas.
+- **Conventional Commits em inglês**, um commit por concern.
+
+---
+
+## 5. Estrutura de pacotes
+
+```
+dev.mauricioandrade.kakeizu/
+├── domain/
+│   ├── model/        # Receipt (sealed), Money, Cnpj, NfeAccessKey, PixEndToEndId, ReceiptStatus, Category
+│   ├── port/
+│   │   ├── in/       # ExtractReceiptUseCase, ConfirmReceiptUseCase, DailySummaryUseCase
+│   │   └── out/      # ReceiptReader (IA), ReceiptRepository, ImageStorage
+│   ├── service/      # ReceiptValidator, ExtractionMapper
+│   └── exception/
+├── application/
+│   └── usecase/      # implementações dos ports de entrada
+└── infrastructure/
+    ├── ai/           # GemmaReceiptReader + AI Service do LangChain4j + ExtractedReceipt (record bruto)
+    ├── persistence/  # entidades Panache + adapter do repositório
+    ├── storage/      # imagens em disco local (diretório configurável)
+    └── web/          # resources REST, templates Qute, request/response records
+```
+
+---
+
+## 6. Modelo de domínio
+
+```java
+public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt {
+    Money amount();
+    LocalDate issuedOn();
+    String counterparty();
+}
+
+public record FiscalInvoice(Money amount, LocalDate issuedOn, String counterparty,
+                            Cnpj issuerCnpj, NfeAccessKey accessKey) implements Receipt {}
+
+public record FiscalCoupon(Money amount, LocalDate issuedOn, String counterparty,
+                           Cnpj issuerCnpj) implements Receipt {}
+
+public record PixReceipt(Money amount, LocalDate issuedOn, String counterparty,
+                         PixEndToEndId endToEndId) implements Receipt {}
+```
+
+Entidade persistida: `ReceiptRecord` com `id`, `type`, campos acima, `category`, `status` (`PENDING_REVIEW`, `CONFIRMED`, `REJECTED`), `imageSha256`, `rawModelOutput` (JSON, para depuração e para o post), `createdAt`.
+
+### Value objects com validação real
+
+Aqui está o diferencial técnico do projeto: o modelo erra, o domínio pega.
+
+- **`Money`**: aceita `"1234.56"` e `"1.234,56"`; escala 2; rejeita negativo.
+- **`Cnpj`**: 14 dígitos + validação dos dois dígitos verificadores.
+- **`NfeAccessKey`**: 44 dígitos + dígito verificador módulo 11. Os dígitos 3–4 (ano/mês) e 7–20 (CNPJ do emissor) devem bater com os outros campos; se não baterem, gera alerta na revisão, não erro fatal.
+- **`PixEndToEndId`**: 32 caracteres, começa com `E`, alfanumérico.
+
+> 📚 **Estudo — por que validar o que a IA devolveu?**
+> Modelos pequenos rodando local são ótimos em "ler" mas erram dígitos em letra miúda. Dígitos verificadores (módulo 11 na chave da NF-e, os dois DVs do CNPJ) existem justamente para detectar erro de digitação, e servem igualmente bem para detectar erro de leitura da IA. É validação determinística barata em cima de uma saída probabilística.
+
+---
+
+## 7. Fronteira com a IA
+
+```java
+// infrastructure/ai — o que o modelo devolve, sem confiar em nada
+public record ExtractedReceipt(
+        String type,            // "NFE" | "NFCE" | "PIX" | "UNKNOWN"
+        String amount,
+        String date,            // ISO-8601
+        String counterparty,
+        String taxId,
+        String uniqueId,
+        String suggestedCategory) {}
+
+@RegisterAiService
+public interface ReceiptExtractionService {
+    @SystemMessage("""
+        You read Brazilian payment receipts: NF-e, NFC-e/cupom fiscal and Pix transfer receipts.
+        Return only the requested fields. If a field is not visible, return null. Never guess digits.
+        """)
+    @UserMessage("Extract the receipt data from this image.")
+    ExtractedReceipt extract(@ImageUrl Image image);
+}
+```
+
+- `GemmaReceiptReader` implementa o port `ReceiptReader`, monta a `Image` em base64 e chama o serviço. Confirme na documentação da versão do quarkus-langchain4j a forma atual de passar imagem (anotação e tipo).
+- `ExtractionMapper` (domínio) converte `ExtractedReceipt` → `ExtractionResult`, que contém o `Receipt` candidato (ou campos parciais) **e a lista de problemas de validação**. Use `switch` com pattern matching sobre o tipo.
+- Categorias iniciais (enum): `FUEL_SUPPLY`, `GOODS`, `SERVICES`, `UTILITIES`, `PAYROLL`, `OTHER`. O modelo sugere, o usuário troca na revisão.
+- Guarde o JSON bruto do modelo em `rawModelOutput`.
+
+---
+
+## 8. Telas e endpoints
+
+| Rota | Função |
+|---|---|
+| `GET /` | Upload + lista dos comprovantes do dia |
+| `POST /receipts` | Recebe a imagem, checa duplicata por SHA-256, extrai, salva como `PENDING_REVIEW`, redireciona para revisão |
+| `GET /receipts/{id}/review` | Imagem ao lado do formulário editável; problemas de validação destacados |
+| `POST /receipts/{id}/confirm` | Revalida com os dados corrigidos e confirma |
+| `POST /receipts/{id}/reject` | Rejeita |
+| `GET /summary?date=` | Totais do dia por tipo e categoria (só `CONFIRMED`) |
+
+Qute + htmx, sem build de frontend. Visual limpo e legível no celular (o dono do posto vai usar no telefone).
+
+---
+
+## 9. Fases
+
+Cada fase termina com testes passando, commit(s) e resumo.
+
+**Fase 1 — Esqueleto**
+Projeto Quarkus com Java 25, extensões da seção 2, estrutura de pacotes vazia, `docker-compose.yml`, `.gitignore`, README mínimo.
+`chore: bootstrap quarkus project with java 25`
+
+**Fase 2 — Spike de IA**
+Endpoint temporário que recebe uma imagem e devolve o `ExtractedReceipt` cru. Objetivo único: provar que Ollama + Gemma leem um comprovante. Coloque 3 imagens de exemplo anonimizadas em `src/test/resources/samples/`.
+`feat(ai): extract raw receipt data with local gemma`
+
+**Fase 3 — Domínio**
+Value objects, `Receipt` selado, `ReceiptValidator`, `ExtractionMapper`. Testes unitários puros cobrindo DVs de CNPJ e chave NF-e, parsing de `Money` nos dois formatos e campos nulos.
+`feat(domain): add receipt model and validation`
+
+**Fase 4 — Persistência**
+Migration Flyway `V1__create_receipts.sql`, entidade Panache, adapter do repositório, deduplicação por hash e por identificador único.
+`feat(persistence): store receipts with flyway schema`
+
+**Fase 5 — Casos de uso**
+Extract, confirm, reject, daily summary. Teste com o port `ReceiptReader` mockado (sem chamar o modelo).
+`feat(app): add receipt use cases`
+
+**Fase 6 — Web**
+Templates Qute, fluxo upload → revisão → confirmação → resumo.
+`feat(web): add upload, review and summary pages`
+
+**Fase 7 — Prova com dados reais**
+Rodar com comprovantes reais, ajustar o prompt, registrar no README uma tabela simples: quantos campos o modelo acertou de primeira vs. quantos a validação pegou. Esse número vai para o post.
+`docs: add accuracy notes from real receipts`
+
+**Fase 8 — Extras (só se sobrar tempo)**
+Upload em lote com structured concurrency (preview, exige `--enable-preview` no compilador e no runtime; isole numa classe só) e `ScopedValue` para propagar um id de correlação nos logs.
+
+---
+
+## 10. Java 25 que deve aparecer no código
+
+Use onde fizer sentido natural, sem forçar:
+
+- **Sealed interfaces + records + `switch` com pattern matching** no `ExtractionMapper` e no resumo diário (switch exaustivo, sem `default`).
+- **Record patterns** para desestruturar (`case PixReceipt(var amount, _, _, var e2e) -> ...`).
+- **Variáveis não nomeadas `_`** em patterns e em `catch` onde a exceção não é usada.
+- **Flexible constructor bodies (JEP 513)**: construtor alternativo `Money(String raw)` que normaliza e valida a string **antes** de chamar `this(...)`.
+- **Scoped values (JEP 506)**: fase 8.
+- **Module import declarations (JEP 511)**: opcional em testes ou scripts, não no código de produção.
+
+> 📚 **Estudo — flexible constructor bodies**
+> Até o Java 24, a primeira linha de um construtor tinha que ser `this(...)` ou `super(...)`. No 25 dá para escrever lógica antes, desde que não use `this`. Em um record, isso permite um construtor auxiliar que limpa `"R$ 1.234,56"` e só então delega ao canônico, sem método estático de fábrica.
+
+---
+
+## 11. Definição de pronto
+
+- `./mvnw verify` verde
+- `./mvnw quarkus:dev` sobe com Dev Services e o fluxo completo funciona com Ollama rodando
+- README em inglês: o problema, como rodar (incluindo os dois cenários de Ollama no WSL), screenshots, tabela de acurácia da fase 7, e a seção *Why open matters* (dados financeiros não saem da máquina; custo zero por documento; modelo trocável por propriedade)
+- Nenhuma credencial ou comprovante real não anonimizado no repositório

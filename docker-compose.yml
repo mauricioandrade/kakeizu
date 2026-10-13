@@ -1,0 +1,15 @@
+# Postgres for running outside Quarkus dev mode (dev/test use Dev Services).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kakeizu
+      POSTGRES_USER: kakeizu
+      POSTGRES_PASSWORD: kakeizu
+    ports:
+      - "5432:5432"
+    volumes:
+      - kakeizu-data:/var/lib/postgresql/data
+
+volumes:
+  kakeizu-data:
