@@ -22,13 +22,13 @@ public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt,
 
     /**
      * The identifier that makes this receipt unique across all others. Card authorization codes repeat
-     * across days and machines, so card slips have none.
+     * across days and machines, so card slips have none, and neither do Pix slips from a card machine.
      */
     default Optional<String> deduplicationKey() {
         return switch (this) {
             case FiscalInvoice(_, _, _, _, var accessKey) -> Optional.of(accessKey.value());
             case FiscalCoupon(_, _, _, _, var accessKey) -> Optional.of(accessKey.value());
-            case PixReceipt(_, _, _, var endToEndId) -> Optional.of(endToEndId.value());
+            case PixReceipt(_, _, _, var endToEndId) -> Optional.ofNullable(endToEndId).map(PixEndToEndId::value);
             case CardReceipt _ -> Optional.empty();
         };
     }

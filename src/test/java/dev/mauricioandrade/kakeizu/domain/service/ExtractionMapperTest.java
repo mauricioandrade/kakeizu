@@ -58,6 +58,19 @@ class ExtractionMapperTest {
     }
 
     @Test
+    void pixPaidOnACardMachineHasNoEndToEndId() {
+        // The machine prints its own transaction ID; the shop's CNPJ is printed as the receiver
+        var result = mapper.map(new ReceiptFields("PIX", "300.00", "2026-10-13", "Melhor Grão Stone",
+                "69.034.668/0001-56", null, "GOODS", "12:52", null, null, null, null));
+
+        assertTrue(result.isValid());
+        var pix = assertInstanceOf(PixReceipt.class, result.receipt().orElseThrow());
+        assertNull(pix.endToEndId());
+        assertTrue(pix.deduplicationKey().isEmpty());
+        assertEquals(Direction.SALE, result.direction());
+    }
+
+    @Test
     void validInvoice() {
         var result = mapper.map(new ReceiptFields("nfe", "1.500,00", "2022-10-05", "Distribuidora Exemplo",
                 "11.222.333/0001-81", "35221011222333000181550010000123451123456787", "FUEL_SUPPLY", null, null, null, null, null));

@@ -66,7 +66,7 @@ public class ExtractionMapper {
                 yield buildIfValid(issues, () -> new FiscalCoupon(amount, date, counterparty, cnpj, accessKey));
             }
             case PIX -> {
-                var endToEndId = parse("uniqueId", fields.uniqueId(), PixEndToEndId::new, issues);
+                var endToEndId = parseIfPresent("uniqueId", fields.uniqueId(), PixEndToEndId::new, issues);
                 yield buildIfValid(issues, () -> new PixReceipt(amount, date, counterparty, endToEndId));
             }
             case CARD -> {

@@ -75,6 +75,7 @@ class PanacheReceiptRepositoryTest {
                 new FiscalCoupon(new Money("42,90"), DAY, "Mercadinho Exemplo", new Cnpj("12.ABC.345/01DE-35"),
                         new NfeAccessKey("35261012ABC34501DE35651010000050961123456785")),
                 new PixReceipt(new Money("80"), DAY, "Pagsmile", new PixEndToEndId("E00416968202208120422Mmzi9rPYPLT")),
+                new PixReceipt(new Money("300"), DAY, "Melhor Grão Stone", null),
                 new CardReceipt(new Money("500"), DAY, "Melhor Grão Stone", new Cnpj("69.034.668/0001-56"), null),
                 new CardReceipt(new Money("89.82"), DAY, "Toesca Supermercado", null, "434817"));
     }
@@ -125,6 +126,14 @@ class PanacheReceiptRepositoryTest {
         confirm(pending(INVALID_FIELDS, Instant.now()), card);
 
         assertDoesNotThrow(() -> confirm(pending(INVALID_FIELDS, Instant.now()), card));
+    }
+
+    @Test
+    void pixSlipsWithoutEndToEndIdAreNotDuplicatesOfEachOther() {
+        var pix = new PixReceipt(new Money("300"), DAY, "Melhor Grão Stone", null);
+        confirm(pending(INVALID_FIELDS, Instant.now()), pix);
+
+        assertDoesNotThrow(() -> confirm(pending(INVALID_FIELDS, Instant.now()), pix));
     }
 
     @Test
