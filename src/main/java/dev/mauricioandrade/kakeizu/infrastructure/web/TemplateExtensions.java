@@ -41,6 +41,7 @@ public class TemplateExtensions {
             case NFCE -> "NFC-e";
             case PIX -> "Pix";
             case CARD -> "Card";
+            case CHEQUE -> "Cheque";
         };
     }
 
@@ -69,6 +70,7 @@ public class TemplateExtensions {
             case CREDIT -> "Credit";
             case DEBIT -> "Debit";
             case PIX -> "Pix";
+            case CHEQUE -> "Cheque";
             case OTHER -> "Other";
         };
     }

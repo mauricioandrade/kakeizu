@@ -1,6 +1,7 @@
 package dev.mauricioandrade.kakeizu.infrastructure.config;
 
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
+import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.service.ExtractionMapper;
 import dev.mauricioandrade.kakeizu.domain.service.ReceiptValidator;
 import dev.mauricioandrade.kakeizu.domain.service.SalesReportCalculator;
@@ -24,9 +25,15 @@ public class DomainServicesProducer {
     // An invalid CNPJ in the configuration fails at startup, not on the first receipt
     @Produces
     @Singleton
-    ExtractionMapper extractionMapper(ReceiptValidator validator,
-                                      @ConfigProperty(name = "kakeizu.shop.cnpj") Optional<String> shopCnpj) {
-        return new ExtractionMapper(validator, shopCnpj.filter(s -> !s.isBlank()).map(Cnpj::new));
+    Shop shop(@ConfigProperty(name = "kakeizu.shop.cnpj") Optional<String> cnpj,
+              @ConfigProperty(name = "kakeizu.shop.accepts-cheques") boolean acceptsCheques) {
+        return new Shop(cnpj.filter(s -> !s.isBlank()).map(Cnpj::new), acceptsCheques);
+    }
+
+    @Produces
+    @Singleton
+    ExtractionMapper extractionMapper(ReceiptValidator validator, Shop shop) {
+        return new ExtractionMapper(validator, shop);
     }
 
     @Produces

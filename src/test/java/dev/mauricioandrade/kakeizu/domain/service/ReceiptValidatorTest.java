@@ -2,6 +2,7 @@ package dev.mauricioandrade.kakeizu.domain.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
@@ -38,6 +39,14 @@ class ReceiptValidatorTest {
                 new PixEndToEndId("E00416968202208120422Mmzi9rPYPLT"));
 
         assertEquals(List.of(ValidationIssue.error("date", "Date is in the future: 2026-10-14")), validator.validate(pix));
+    }
+
+    @Test
+    void postDatedChequeIsOnlyAWarning() {
+        var cheque = new ChequeReceipt(new Money("9657"), LocalDate.of(2026, 11, 13), "Transportadora Exemplo", null);
+
+        assertEquals(List.of(ValidationIssue.warning("date", "Post-dated cheque: it can only be deposited on 2026-11-13")),
+                validator.validate(cheque));
     }
 
     @Test

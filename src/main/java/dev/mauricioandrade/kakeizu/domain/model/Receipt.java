@@ -3,7 +3,7 @@ package dev.mauricioandrade.kakeizu.domain.model;
 import java.time.LocalDate;
 import java.util.Optional;
 
-public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt, CardReceipt {
+public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt, CardReceipt, ChequeReceipt {
 
     Money amount();
 
@@ -17,6 +17,7 @@ public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt,
             case FiscalCoupon _ -> ReceiptType.NFCE;
             case PixReceipt _ -> ReceiptType.PIX;
             case CardReceipt _ -> ReceiptType.CARD;
+            case ChequeReceipt _ -> ReceiptType.CHEQUE;
         };
     }
 
@@ -30,6 +31,7 @@ public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt,
             case FiscalCoupon(_, _, _, _, var accessKey) -> Optional.of(accessKey.value());
             case PixReceipt(_, _, _, var endToEndId) -> Optional.ofNullable(endToEndId).map(PixEndToEndId::value);
             case CardReceipt _ -> Optional.empty();
+            case ChequeReceipt(_, _, _, var cmc7) -> Optional.ofNullable(cmc7).map(Cmc7::value);
         };
     }
 }

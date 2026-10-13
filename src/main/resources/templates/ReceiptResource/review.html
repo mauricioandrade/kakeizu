@@ -37,9 +37,9 @@
             </div>
             {#field name='amount' label='Amount' value=result.fields.amount result=result maxlength=30 hint='1234.56 or 1.234,56' /}
             {#field name='date' label='Date' value=result.fields.date result=result maxlength=10 hint='yyyy-mm-dd' /}
-            {#field name='counterparty' label='Issuer / payer' value=result.fields.counterparty result=result /}
+            {#field name='counterparty' label='Issuer / payer' hint='On a cheque, the account holder who wrote it' value=result.fields.counterparty result=result /}
             {#field name='taxId' label='CNPJ' value=result.fields.taxId result=result maxlength=30 /}
-            {#field name='uniqueId' label='Unique ID' value=result.fields.uniqueId result=result maxlength=60 hint='NF-e/NFC-e access key, Pix ID or card authorization code' /}
+            {#field name='uniqueId' label='Unique ID' value=result.fields.uniqueId result=result maxlength=60 hint='NF-e/NFC-e access key, Pix ID, card authorization code or the cheque magnetic line (CMC-7)' /}
             {#field name='time' label='Time' value=result.fields.time result=result maxlength=8 hint='hh:mm' /}
             <div class="field{#if result.hasErrorIn('paymentMethod')} invalid{/if}">
                 <label for="paymentMethod">Paid with</label>

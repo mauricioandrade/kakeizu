@@ -9,6 +9,8 @@ import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.Cmc7;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
@@ -46,6 +48,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 @TestTransaction
 class PanacheReceiptRepositoryTest {
 
+    // Made up, with valid check digits
+    static final String CMC7 = "00112341 0180001235 200000123455";
+
     static final LocalDate DAY = LocalDate.of(2022, 8, 12);
     static final Payment CREDIT_5X_AT_NOON = new Payment(LocalTime.NOON, PaymentMethod.CREDIT, 5, CardBrand.VISA);
     static final ReceiptFields INVALID_FIELDS = new ReceiptFields("NFCE", "146.46", "2020-01-01", "LOJA RUA",
@@ -77,7 +82,9 @@ class PanacheReceiptRepositoryTest {
                 new PixReceipt(new Money("80"), DAY, "Pagsmile", new PixEndToEndId("E00416968202208120422Mmzi9rPYPLT")),
                 new PixReceipt(new Money("300"), DAY, "Melhor Grão Stone", null),
                 new CardReceipt(new Money("500"), DAY, "Melhor Grão Stone", new Cnpj("69.034.668/0001-56"), null),
-                new CardReceipt(new Money("89.82"), DAY, "Toesca Supermercado", null, "434817"));
+                new CardReceipt(new Money("89.82"), DAY, "Toesca Supermercado", null, "434817"),
+                new ChequeReceipt(new Money("9657"), DAY, "Transportadora Exemplo", null),
+                new ChequeReceipt(new Money("9657"), DAY, "Transportadora Exemplo", new Cmc7(CMC7)));
     }
 
     @ParameterizedTest
@@ -126,6 +133,14 @@ class PanacheReceiptRepositoryTest {
         confirm(pending(INVALID_FIELDS, Instant.now()), card);
 
         assertDoesNotThrow(() -> confirm(pending(INVALID_FIELDS, Instant.now()), card));
+    }
+
+    @Test
+    void sameChequeConfirmedTwiceIsRejectedByTheDatabase() {
+        var cheque = new ChequeReceipt(new Money("9657"), DAY, "Transportadora Exemplo", new Cmc7(CMC7));
+        confirm(pending(INVALID_FIELDS, Instant.now()), cheque);
+
+        assertThrows(DuplicateReceiptException.class, () -> confirm(pending(INVALID_FIELDS, Instant.now()), cheque));
     }
 
     @Test

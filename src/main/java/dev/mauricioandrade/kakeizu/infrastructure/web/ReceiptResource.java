@@ -8,6 +8,7 @@ import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
 import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
+import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
 import dev.mauricioandrade.kakeizu.domain.port.in.ConfirmReceiptUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.in.ExtractReceiptUseCase;
@@ -38,9 +39,7 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 @Path("/receipts")
 public class ReceiptResource {
 
-    private static final List<ReceiptType> TYPES = Arrays.asList(ReceiptType.values());
     private static final List<Category> CATEGORIES = Arrays.asList(Category.values());
-    private static final List<PaymentMethod> METHODS = Arrays.asList(PaymentMethod.values());
     private static final List<CardBrand> BRANDS = Arrays.asList(CardBrand.values());
     private static final List<Direction> DIRECTIONS = Arrays.asList(Direction.values());
 
@@ -48,8 +47,15 @@ public class ReceiptResource {
                   List<Category> categories, List<PaymentMethod> methods, List<CardBrand> brands,
                   List<Direction> directions) implements TemplateInstance {
 
-        review(ReceiptRecord receipt, ExtractionResult result, boolean duplicate) {
-            this(receipt, result, duplicate, TYPES, CATEGORIES, METHODS, BRANDS, DIRECTIONS);
+        // Cheque is only offered to shops that take cheques
+        review(ReceiptRecord receipt, ExtractionResult result, boolean duplicate, Shop shop) {
+            this(receipt, result, duplicate,
+                    Arrays.stream(ReceiptType.values())
+                            .filter(t -> shop.acceptsCheques() || t != ReceiptType.CHEQUE).toList(),
+                    CATEGORIES,
+                    Arrays.stream(PaymentMethod.values())
+                            .filter(m -> shop.acceptsCheques() || m != PaymentMethod.CHEQUE).toList(),
+                    BRANDS, DIRECTIONS);
         }
     }
 
@@ -58,15 +64,17 @@ public class ReceiptResource {
     private final ConfirmReceiptUseCase confirmReceipt;
     private final RejectReceiptUseCase rejectReceipt;
     private final ReceiptImageUseCase receiptImage;
+    private final Shop shop;
 
     public ReceiptResource(ExtractReceiptUseCase extractReceipt, ReviewReceiptUseCase reviewReceipt,
                            ConfirmReceiptUseCase confirmReceipt, RejectReceiptUseCase rejectReceipt,
-                           ReceiptImageUseCase receiptImage) {
+                           ReceiptImageUseCase receiptImage, Shop shop) {
         this.extractReceipt = extractReceipt;
         this.reviewReceipt = reviewReceipt;
         this.confirmReceipt = confirmReceipt;
         this.rejectReceipt = rejectReceipt;
         this.receiptImage = receiptImage;
+        this.shop = shop;
     }
 
     @POST
@@ -91,7 +99,7 @@ public class ReceiptResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance review(@RestPath UUID id, @RestQuery boolean duplicate) {
         var review = reviewReceipt.review(id);
-        return new review(review.receipt(), review.result(), duplicate);
+        return new review(review.receipt(), review.result(), duplicate, shop);
     }
 
     @GET
@@ -112,7 +120,7 @@ public class ReceiptResource {
             case ConfirmResult.Confirmed _ -> Response.seeOther(URI.create("/")).build();
             // Show the form again with what the person typed and what is still wrong
             case ConfirmResult.Invalid(var result) -> Response.status(422)
-                    .entity(new review(reviewReceipt.review(id).receipt(), result, false))
+                    .entity(new review(reviewReceipt.review(id).receipt(), result, false, shop))
                     .build();
         };
     }

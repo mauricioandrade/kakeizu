@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.Cmc7;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
@@ -123,6 +125,8 @@ public class PanacheReceiptRepository implements ReceiptRepository {
                     setIdentity(entity, ReceiptType.PIX, null, endToEndId == null ? null : endToEndId.value());
             case CardReceipt(_, _, _, var cnpj, var authorizationCode) ->
                     setIdentity(entity, ReceiptType.CARD, cnpj == null ? null : cnpj.value(), authorizationCode);
+            case ChequeReceipt(_, _, _, var cmc7) ->
+                    setIdentity(entity, ReceiptType.CHEQUE, null, cmc7 == null ? null : cmc7.value());
         }
     }
 
@@ -168,6 +172,8 @@ public class PanacheReceiptRepository implements ReceiptRepository {
                     entity.uniqueId == null ? null : new PixEndToEndId(entity.uniqueId));
             case CARD -> new CardReceipt(amount, entity.issuedOn, entity.counterparty,
                     entity.taxId == null ? null : new Cnpj(entity.taxId), entity.uniqueId);
+            case CHEQUE -> new ChequeReceipt(amount, entity.issuedOn, entity.counterparty,
+                    entity.uniqueId == null ? null : new Cmc7(entity.uniqueId));
         };
     }
 

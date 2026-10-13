@@ -2,6 +2,7 @@ package dev.mauricioandrade.kakeizu.domain.service;
 
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
@@ -23,9 +24,10 @@ import java.util.Optional;
 /**
  * Builds the sales report, counting each sale once.
  *
- * <p>A card sale often leaves two receipts: the NFC-e and the card slip. An NF-e or NFC-e paid by card or Pix
- * is paired with a card slip or Pix receipt of the same amount, on the same day, at most 15 minutes apart
- * (or on the same day if either shows no time), and only the slip or Pix receipt is counted. Pairs are one to
+ * <p>A card sale often leaves two receipts: the NFC-e and the card slip. An NF-e or NFC-e paid by card, Pix or
+ * cheque is paired with a card slip, Pix receipt or cheque of the same amount, on the same day, at most 15
+ * minutes apart (or on the same day if either shows no time, as on a cheque), and only the slip, Pix or cheque
+ * is counted. Pairs are one to
  * one, so two equal sales in a row stay two sales. A fiscal document with no pair still counts: the owner may
  * have photographed only the NFC-e.
  */
@@ -40,12 +42,12 @@ public class SalesReportCalculator {
         var documentsToPair = new ArrayList<Confirmation>();
         for (Confirmation sale : sales) {
             switch (sale.receipt()) {
-                case CardReceipt _, PixReceipt _ -> {
+                case CardReceipt _, PixReceipt _, ChequeReceipt _ -> {
                     counted.add(sale);
                     unpairedMoney.add(sale);
                 }
                 case FiscalInvoice _, FiscalCoupon _ -> {
-                    if (isPaidElectronically(sale)) {
+                    if (hasItsOwnReceipt(sale)) {
                         documentsToPair.add(sale);
                     } else {
                         counted.add(sale);
@@ -66,9 +68,10 @@ public class SalesReportCalculator {
         return aggregate(from, to, counted, paired);
     }
 
-    private static boolean isPaidElectronically(Confirmation document) {
+    // Paid by card, Pix or cheque: the slip, the Pix or the cheque may have been photographed too
+    private static boolean hasItsOwnReceipt(Confirmation document) {
         var method = document.payment().method();
-        return method != null && (method.isCard() || method == PaymentMethod.PIX);
+        return method != null && (method.isCard() || method == PaymentMethod.PIX || method == PaymentMethod.CHEQUE);
     }
 
     private static Optional<Confirmation> closestPair(Confirmation document, List<Confirmation> candidates) {
@@ -83,6 +86,7 @@ public class SalesReportCalculator {
         boolean sameMethod = switch (paid) {
             case PixReceipt _ -> document.payment().method() == PaymentMethod.PIX;
             case CardReceipt _ -> document.payment().method() == money.payment().method();
+            case ChequeReceipt _ -> document.payment().method() == PaymentMethod.CHEQUE;
             case FiscalInvoice _, FiscalCoupon _ -> false;
         };
         return sameMethod

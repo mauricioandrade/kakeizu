@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
@@ -19,6 +20,7 @@ import dev.mauricioandrade.kakeizu.domain.model.Payment;
 import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.PixReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
+import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.model.ValidationIssue;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -31,8 +33,9 @@ class ExtractionMapperTest {
     // The shop is Melhor Grão Stone: its own card slips are sales, other CNPJs are expenses
     static final Cnpj SHOP = new Cnpj("69.034.668/0001-56");
 
+    // It takes cheques, like the fuel station that sent the cheque photo
     final ExtractionMapper mapper = new ExtractionMapper(new ReceiptValidator(ReceiptValidatorTest.TODAY),
-            Optional.of(SHOP));
+            new Shop(Optional.of(SHOP), true));
 
     @Test
     void gemmaOutputForThePixSampleIsCaughtOnTheTransactionId() {
@@ -198,6 +201,59 @@ class ExtractionMapperTest {
     }
 
     @Test
+    void chequeIsReadWithoutItsMagneticLine() {
+        // gemma4:e4b reads the boxes of a real cheque but never the CMC-7 line; the drawer is another company
+        var result = mapper.map(cheque("11.222.333/0001-81", null, null));
+
+        assertTrue(result.isValid());
+        var cheque = assertInstanceOf(ChequeReceipt.class, result.receipt().orElseThrow());
+        assertNull(cheque.cmc7());
+        assertEquals(PaymentMethod.CHEQUE, result.payment().orElseThrow().method());
+        assertEquals(Direction.SALE, result.direction(), "a cheque names who pays, so another CNPJ is a sale");
+    }
+
+    @Test
+    void chequeWrittenByTheShopIsAnExpense() {
+        assertEquals(Direction.EXPENSE, mapper.map(cheque("69.034.668/0001-56", null, null)).direction());
+    }
+
+    @Test
+    void chequeMagneticLineIsCheckedWhenTyped() {
+        var typed = mapper.map(cheque("11.222.333/0001-81", "<00112341<0180001235>200000123455:", null));
+        assertEquals("001123410180001235200000123455",
+                assertInstanceOf(ChequeReceipt.class, typed.receipt().orElseThrow()).cmc7().value());
+
+        assertEquals(List.of("uniqueId"),
+                errorFields(mapper.map(cheque("11.222.333/0001-81", "00112341 0180001285 200000123455", null))));
+        assertEquals(List.of("paymentMethod"), errorFields(mapper.map(cheque("11.222.333/0001-81", null, "CASH"))));
+    }
+
+    @Test
+    void shopThatDoesNotTakeChequesGetsTheChequeFlagged() {
+        var noCheques = new ExtractionMapper(new ReceiptValidator(ReceiptValidatorTest.TODAY),
+                new Shop(Optional.of(SHOP), false));
+
+        var cheque = noCheques.map(cheque("11.222.333/0001-81", null, null));
+        assertTrue(cheque.receipt().isEmpty());
+        assertEquals(List.of(ValidationIssue.error("type", ExtractionMapper.NO_CHEQUES)), cheque.issues());
+
+        var nfce = noCheques.map(new ReceiptFields("NFCE", "21.60", "2014-07-14", "N. Claudino e Cia Ltda",
+                "08.995.631/0031-15", "25140708995631003115650060000000091000000094", "GOODS", "10:09", "CHEQUE",
+                null, null, "SALE"));
+        assertEquals(List.of(ValidationIssue.error("paymentMethod", ExtractionMapper.NO_CHEQUES)), nfce.issues());
+    }
+
+    @Test
+    void nfcePaidByChequeIsAccepted() {
+        var result = mapper.map(new ReceiptFields("NFCE", "21.60", "2014-07-14", "N. Claudino e Cia Ltda",
+                "08.995.631/0031-15", "25140708995631003115650060000000091000000094", "GOODS", "10:09", "cheque",
+                null, null, "SALE"));
+
+        assertTrue(result.isValid());
+        assertEquals(PaymentMethod.CHEQUE, result.payment().orElseThrow().method());
+    }
+
+    @Test
     void pixIsPaidByPixEvenWhenTheModelSaysNothing() {
         var result = mapper.map(pix(null));
 
@@ -271,7 +327,8 @@ class ExtractionMapperTest {
         assertEquals(List.of("direction"), errorFields(cpf));
         assertNull(cpf.direction());
 
-        var withoutShopCnpj = new ExtractionMapper(new ReceiptValidator(ReceiptValidatorTest.TODAY), Optional.empty());
+        var withoutShopCnpj = new ExtractionMapper(new ReceiptValidator(ReceiptValidatorTest.TODAY),
+                new Shop(Optional.empty(), true));
         assertEquals(List.of("direction"), errorFields(withoutShopCnpj.map(card("CREDIT", null, null))));
 
         var chosen = mapper.map(new ReceiptFields("PIX", "70.00", "2022-06-30", "Savio", null,
@@ -284,6 +341,11 @@ class ExtractionMapperTest {
     private static ReceiptFields pix(String method) {
         return new ReceiptFields("PIX", "80.00", "2022-08-12", "Pagsmile", "23.010.551/0001-31",
                 "E00416968202208120422Mmzi9rPYPLT", "OTHER", "04:22", method, null, null, null);
+    }
+
+    private static ReceiptFields cheque(String drawerCnpj, String cmc7, String method) {
+        return new ReceiptFields("CHEQUE", "9657.00", "2026-10-13", "Transportadora Exemplo", drawerCnpj, cmc7,
+                "FUEL_SUPPLY", null, method, null, null, null);
     }
 
     private static ReceiptFields card(String method, String installments, String brand) {

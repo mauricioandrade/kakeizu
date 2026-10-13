@@ -3,6 +3,7 @@ package dev.mauricioandrade.kakeizu.application.usecase;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.ModelReading;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
+import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.service.ExtractionMapper;
 import dev.mauricioandrade.kakeizu.domain.service.ReceiptValidator;
 import java.time.Clock;
@@ -16,7 +17,7 @@ final class Fixtures {
     static final Clock NOW = Clock.fixed(Instant.parse("2026-10-13T15:00:00Z"), SAO_PAULO);
     // The shop is Melhor Grão Stone: its card slips are sales, the Pix to Pagsmile and the NFC-e are expenses
     static final ExtractionMapper MAPPER = new ExtractionMapper(new ReceiptValidator(NOW),
-            Optional.of(new Cnpj("69.034.668/0001-56")));
+            new Shop(Optional.of(new Cnpj("69.034.668/0001-56")), false));
 
     // gemma3:4b output for samples/pix-inter.png: the transaction ID has one extra character
     static final ReceiptFields PIX_AS_READ = new ReceiptFields("PIX", "80.00", "2022-08-12", "Pagsmile",

@@ -7,6 +7,8 @@ import dev.mauricioandrade.kakeizu.domain.exception.InvalidValueException;
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.Cmc7;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
@@ -21,6 +23,7 @@ import dev.mauricioandrade.kakeizu.domain.model.PixReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Receipt;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
+import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.model.ValidationIssue;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -36,15 +39,14 @@ import java.util.function.Supplier;
  */
 public class ExtractionMapper {
 
-    private final ReceiptValidator validator;
-    private final Optional<Cnpj> shopCnpj;
+    static final String NO_CHEQUES = "This shop does not accept cheques (set KAKEIZU_SHOP_ACCEPTS_CHEQUES=true to change that)";
 
-    /**
-     * @param shopCnpj the shop's own CNPJ, used to tell sales from expenses; empty if not configured
-     */
-    public ExtractionMapper(ReceiptValidator validator, Optional<Cnpj> shopCnpj) {
+    private final ReceiptValidator validator;
+    private final Shop shop;
+
+    public ExtractionMapper(ReceiptValidator validator, Shop shop) {
         this.validator = validator;
-        this.shopCnpj = shopCnpj;
+        this.shop = shop;
     }
 
     public ExtractionResult map(ReceiptFields fields) {
@@ -74,16 +76,24 @@ public class ExtractionMapper {
                 var authorizationCode = blankToNull(fields.uniqueId());
                 yield buildIfValid(issues, () -> new CardReceipt(amount, date, counterparty, cnpj, authorizationCode));
             }
+            case CHEQUE -> {
+                if (!shop.acceptsCheques()) {
+                    issues.add(error("type", NO_CHEQUES));
+                    yield Optional.empty();
+                }
+                var cmc7 = parseIfPresent("uniqueId", fields.uniqueId(), Cmc7::new, issues);
+                yield buildIfValid(issues, () -> new ChequeReceipt(amount, date, counterparty, cmc7));
+            }
         };
         receipt.ifPresent(r -> issues.addAll(validator.validate(r)));
 
-        var payment = parsePayment(fields, type, issues);
-        var direction = parseDirection(fields, issues);
+        var payment = parsePayment(fields, type, shop.acceptsCheques(), issues);
+        var direction = parseDirection(fields, type, issues);
         return new ExtractionResult(fields, receipt, parseCategory(fields.category(), issues), payment, direction,
                 issues);
     }
 
-    private static Optional<Payment> parsePayment(ReceiptFields fields, ReceiptType type,
+    private static Optional<Payment> parsePayment(ReceiptFields fields, ReceiptType type, boolean acceptsCheques,
                                                   List<ValidationIssue> issues) {
         int before = issues.size();
         LocalTime time = parseIfPresent("time", fields.time(), ExtractionMapper::parseTime, issues);
@@ -93,14 +103,19 @@ public class ExtractionMapper {
                 ExtractionMapper::parseInstallments, issues);
         CardBrand brand = parseCardBrand(fields.cardBrand(), issues);
 
-        if (type == ReceiptType.PIX) {
+        if (type == ReceiptType.PIX || type == ReceiptType.CHEQUE) {
+            var only = type == ReceiptType.PIX ? PaymentMethod.PIX : PaymentMethod.CHEQUE;
             if (method == null) {
-                method = PaymentMethod.PIX;
-            } else if (method != PaymentMethod.PIX) {
-                issues.add(error("paymentMethod", "A Pix receipt is paid by Pix"));
+                method = only;
+            } else if (method != only) {
+                issues.add(error("paymentMethod", type == ReceiptType.PIX ? "A Pix receipt is paid by Pix"
+                        : "A cheque is paid by cheque"));
             }
         } else if (type == ReceiptType.CARD && (method == null || !method.isCard())) {
             issues.add(error("paymentMethod", "A card receipt is paid by credit or debit"));
+        }
+        if (method == PaymentMethod.CHEQUE && !acceptsCheques && type != ReceiptType.CHEQUE) {
+            issues.add(error("paymentMethod", NO_CHEQUES));
         }
         if (installments != null && installments > 1 && method != PaymentMethod.CREDIT) {
             issues.add(error("installments", "Only credit can be paid in installments"));
@@ -112,14 +127,17 @@ public class ExtractionMapper {
     }
 
     // Typed by a person on review; otherwise the shop's CNPJ tells: if the shop received the money, it is a sale.
+    // A cheque names who pays instead, so there it is the other way round.
     // A CPF or a missing tax ID says nothing, so a person has to choose.
-    private Direction parseDirection(ReceiptFields fields, List<ValidationIssue> issues) {
+    private Direction parseDirection(ReceiptFields fields, ReceiptType type, List<ValidationIssue> issues) {
         if (fields.direction() != null && !fields.direction().isBlank()) {
             return parse("direction", fields.direction(), raw -> parseEnum(Direction.class, raw, "Direction"), issues);
         }
         var counterpartyCnpj = cnpjOrEmpty(fields.taxId());
-        if (shopCnpj.isPresent() && counterpartyCnpj.isPresent()) {
-            return counterpartyCnpj.equals(shopCnpj) ? Direction.SALE : Direction.EXPENSE;
+        if (shop.cnpj().isPresent() && counterpartyCnpj.isPresent()) {
+            boolean shopIsNamed = counterpartyCnpj.equals(shop.cnpj());
+            boolean shopReceived = type == ReceiptType.CHEQUE ? !shopIsNamed : shopIsNamed;
+            return shopReceived ? Direction.SALE : Direction.EXPENSE;
         }
         issues.add(error("direction", "Choose whether the shop received or paid this money"));
         return null;

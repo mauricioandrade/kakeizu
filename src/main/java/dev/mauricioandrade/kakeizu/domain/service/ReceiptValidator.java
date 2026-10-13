@@ -4,6 +4,7 @@ import static dev.mauricioandrade.kakeizu.domain.model.ValidationIssue.error;
 import static dev.mauricioandrade.kakeizu.domain.model.ValidationIssue.warning;
 
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
@@ -31,14 +32,17 @@ public class ReceiptValidator {
     public List<ValidationIssue> validate(Receipt receipt) {
         var issues = new ArrayList<ValidationIssue>();
         if (receipt.issuedOn().isAfter(LocalDate.now(clock))) {
-            issues.add(error("date", "Date is in the future: " + receipt.issuedOn()));
+            // Post-dated cheques are common: the date is when it can be deposited
+            issues.add(receipt instanceof ChequeReceipt
+                    ? warning("date", "Post-dated cheque: it can only be deposited on " + receipt.issuedOn())
+                    : error("date", "Date is in the future: " + receipt.issuedOn()));
         }
         issues.addAll(switch (receipt) {
             case FiscalInvoice(_, var issuedOn, _, var issuerCnpj, var accessKey) ->
                     accessKeyIssues(accessKey, NfeAccessKey.NFE_MODEL, issuedOn, issuerCnpj);
             case FiscalCoupon(_, var issuedOn, _, var issuerCnpj, var accessKey) ->
                     accessKeyIssues(accessKey, NfeAccessKey.NFCE_MODEL, issuedOn, issuerCnpj);
-            case PixReceipt _, CardReceipt _ -> List.of();
+            case PixReceipt _, CardReceipt _, ChequeReceipt _ -> List.of();
         });
         return issues;
     }

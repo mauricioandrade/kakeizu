@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
@@ -115,6 +116,18 @@ class SalesReportCalculatorTest {
     }
 
     @Test
+    void nfcePaidByChequePairsWithTheChequeOnTheSameDay() {
+        // A cheque shows no time, so the day is enough
+        var report = calculate(coupon("9657.00", "06:40", PaymentMethod.CHEQUE), cheque("9657.00"),
+                coupon("120.00", "08:00", PaymentMethod.CASH), cheque("120.00"));
+
+        assertEquals(3, report.count());
+        assertEquals(1, report.pairedDocuments());
+        assertEquals(Map.of(PaymentMethod.CASH, new Money("120.00"), PaymentMethod.CHEQUE, new Money("9777.00")),
+                report.byMethod());
+    }
+
+    @Test
     void withoutTimeOnEitherSideTheDayIsEnough() {
         var report = calculate(
                 coupon("12.00", null, PaymentMethod.CREDIT),
@@ -184,6 +197,11 @@ class SalesReportCalculatorTest {
         return new Confirmation(new PixReceipt(new Money(amount), DAY, "Melhor Grão Stone",
                 new PixEndToEndId("E00416968202208120422Mmzi9rPYPLT")),
                 new Payment(time(time), PaymentMethod.PIX, 1, null), Direction.SALE);
+    }
+
+    private static Confirmation cheque(String amount) {
+        return new Confirmation(new ChequeReceipt(new Money(amount), DAY, "Transportadora Exemplo", null),
+                new Payment(null, PaymentMethod.CHEQUE, 1, null), Direction.SALE);
     }
 
     private static LocalTime time(String value) {
