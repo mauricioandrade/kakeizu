@@ -35,17 +35,20 @@ public class ReceiptValidator {
         }
         issues.addAll(switch (receipt) {
             case FiscalInvoice(_, var issuedOn, _, var issuerCnpj, var accessKey) ->
-                    accessKeyIssues(accessKey, issuedOn, issuerCnpj);
-            case FiscalCoupon _, PixReceipt _, CardReceipt _ -> List.of();
+                    accessKeyIssues(accessKey, NfeAccessKey.NFE_MODEL, issuedOn, issuerCnpj);
+            case FiscalCoupon(_, var issuedOn, _, var issuerCnpj, var accessKey) ->
+                    accessKeyIssues(accessKey, NfeAccessKey.NFCE_MODEL, issuedOn, issuerCnpj);
+            case PixReceipt _, CardReceipt _ -> List.of();
         });
         return issues;
     }
 
     // The key embeds the issue month and the issuer CNPJ: a mismatch means one of them was misread
-    private static List<ValidationIssue> accessKeyIssues(NfeAccessKey key, LocalDate issuedOn, Cnpj issuerCnpj) {
+    private static List<ValidationIssue> accessKeyIssues(NfeAccessKey key, String expectedModel, LocalDate issuedOn,
+                                                         Cnpj issuerCnpj) {
         var issues = new ArrayList<ValidationIssue>();
-        if (!key.model().equals(NfeAccessKey.NFE_MODEL)) {
-            issues.add(warning("uniqueId", "Access key is not from an NF-e (model " + key.model() + ")"));
+        if (!key.model().equals(expectedModel)) {
+            issues.add(warning("uniqueId", "Access key is from model " + key.model() + ", expected " + expectedModel));
         }
         if (!key.issuedIn().equals(YearMonth.from(issuedOn))) {
             issues.add(warning("date", "Date does not match the access key month (" + key.issuedIn() + ")"));

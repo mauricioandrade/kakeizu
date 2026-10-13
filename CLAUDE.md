@@ -123,7 +123,7 @@ public record FiscalInvoice(Money amount, LocalDate issuedOn, String counterpart
                             Cnpj issuerCnpj, NfeAccessKey accessKey) implements Receipt {}
 
 public record FiscalCoupon(Money amount, LocalDate issuedOn, String counterparty,
-                           Cnpj issuerCnpj) implements Receipt {}
+                           Cnpj issuerCnpj, NfeAccessKey accessKey) implements Receipt {}
 
 public record PixReceipt(Money amount, LocalDate issuedOn, String counterparty,
                          PixEndToEndId endToEndId) implements Receipt {}
@@ -141,8 +141,8 @@ Entidade persistida: `ReceiptRecord` com `id`, `type`, campos acima, `category`,
 Aqui está o diferencial técnico do projeto: o modelo erra, o domínio pega.
 
 - **`Money`**: aceita `"1234.56"` e `"1.234,56"`; escala 2; rejeita negativo.
-- **`Cnpj`**: 14 dígitos + validação dos dois dígitos verificadores.
-- **`NfeAccessKey`**: 44 dígitos + dígito verificador módulo 11. Os dígitos 3–6 (AAMM) e 7–20 (CNPJ do emissor) devem bater com os outros campos; se não baterem, gera alerta na revisão, não erro fatal.
+- **`Cnpj`**: 12 caracteres alfanuméricos + 2 DVs numéricos (CNPJ alfanumérico, IN RFB 2.229/2024, emitido desde jul/2026). Cada caractere vale ASCII − 48, o que mantém válidos os CNPJs só com dígitos.
+- **`NfeAccessKey`** (NF-e e NFC-e): 44 caracteres + dígito verificador módulo 11; só a parte do CNPJ pode ser alfanumérica. Os dígitos 3–6 (AAMM) e 7–20 (CNPJ do emissor) devem bater com os outros campos; se não baterem, gera alerta na revisão, não erro fatal.
 - **`PixEndToEndId`**: 32 caracteres, começa com `E`, alfanumérico.
 
 > 📚 **Estudo — por que validar o que a IA devolveu?**

@@ -1,9 +1,9 @@
 package dev.mauricioandrade.kakeizu.domain.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
+import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.NfeAccessKey;
@@ -59,8 +59,15 @@ class ReceiptValidatorTest {
     void nfceKeyOnAnInvoiceIsAWarning() {
         var issues = validator.validate(invoice(LocalDate.of(2022, 10, 5), ISSUER, NFCE_KEY));
 
-        assertEquals(1, issues.size());
-        assertTrue(issues.getFirst().message().contains("model 65"));
+        assertEquals(List.of(ValidationIssue.warning("uniqueId", "Access key is from model 65, expected 55")), issues);
+    }
+
+    @Test
+    void couponIsCheckedAgainstItsKeyToo() {
+        var coupon = new FiscalCoupon(new Money("146,46"), LocalDate.of(2022, 10, 1), "Loja", ISSUER, NFE_KEY);
+
+        assertEquals(List.of(ValidationIssue.warning("uniqueId", "Access key is from model 55, expected 65")),
+                validator.validate(coupon));
     }
 
     private static FiscalInvoice invoice(LocalDate issuedOn, Cnpj cnpj, NfeAccessKey key) {

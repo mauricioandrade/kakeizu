@@ -52,7 +52,8 @@ public class ExtractionMapper {
             }
             case NFCE -> {
                 var cnpj = parse("taxId", fields.taxId(), Cnpj::new, issues);
-                yield buildIfValid(issues, () -> new FiscalCoupon(amount, date, counterparty, cnpj));
+                var accessKey = parse("uniqueId", fields.uniqueId(), NfeAccessKey::new, issues);
+                yield buildIfValid(issues, () -> new FiscalCoupon(amount, date, counterparty, cnpj, accessKey));
             }
             case PIX -> {
                 var endToEndId = parse("uniqueId", fields.uniqueId(), PixEndToEndId::new, issues);

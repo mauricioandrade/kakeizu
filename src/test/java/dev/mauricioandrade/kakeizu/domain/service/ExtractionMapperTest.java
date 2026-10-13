@@ -67,11 +67,22 @@ class ExtractionMapperTest {
     }
 
     @Test
-    void couponNeedsOnlyTheCnpj() {
+    void validCouponWithAlphanumericCnpj() {
         var result = mapper.map(new ReceiptFields("NFCE", "42,90", "2026-10-12", "Mercadinho Exemplo",
-                "69.034.668/0001-56", null, "GOODS"));
+                "12.ABC.345/01DE-35", "3526 1012 ABC3 4501 DE35 6510 1000 0050 9611 2345 6785", "GOODS"));
 
-        assertInstanceOf(FiscalCoupon.class, result.receipt().orElseThrow());
+        assertEquals(List.of(), result.issues());
+        var coupon = assertInstanceOf(FiscalCoupon.class, result.receipt().orElseThrow());
+        assertEquals("35261012ABC34501DE35651010000050961123456785", coupon.accessKey().value());
+    }
+
+    @Test
+    void gemmaOutputForTheDanfeTemplateIsCaughtOnCnpjAndKey() {
+        // Real gemma3:4b output for samples/nfce-template.png: the CNPJ is blank on the image, the model invented zeros
+        var result = mapper.map(new ReceiptFields("NFCE", "146.46", "2020-01-01", "LOJA RUA",
+                "0000000000000000000000000000000", "00000-0000-0000-0000-00-0000-0000-0000-000-0", "GOODS"));
+
+        assertEquals(List.of("taxId", "uniqueId"), errorFields(result));
     }
 
     @Test
@@ -131,7 +142,8 @@ class ExtractionMapperTest {
 
     @Test
     void futureDateBlocksTheReceipt() {
-        var result = mapper.map(new ReceiptFields("NFCE", "10.00", "2027-01-01", "X", "69.034.668/0001-56", null, null));
+        var result = mapper.map(new ReceiptFields("NFCE", "10.00", "2027-01-01", "X", "69.034.668/0001-56",
+                "35200169034668000156651010000050961123456788", null));
 
         assertFalse(result.isValid());
         assertTrue(result.receipt().isPresent()); // built, but the error blocks confirmation

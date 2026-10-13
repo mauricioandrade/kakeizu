@@ -23,9 +23,33 @@ class NfeAccessKeyTest {
     }
 
     @Test
-    void acceptsKeyPrintedInGroupsOfFour() {
-        var grouped = "3522 1011 2223 3300 0181 5500 1000 0123 4511 2345 6787";
-        assertEquals(VALID, new NfeAccessKey(grouped).value());
+    void acceptsAlphanumericCnpjInTheKey() {
+        var key = new NfeAccessKey("35261012ABC34501DE35651010000050961123456785");
+        assertEquals("12ABC34501DE35", key.issuerCnpj());
+        assertEquals(NfeAccessKey.NFCE_MODEL, key.model());
+    }
+
+    @Test
+    void rejectsLettersOutsideTheCnpjPart() {
+        var e = assertThrows(InvalidValueException.class,
+                () -> new NfeAccessKey("35261012ABC34501DE356510100000509611234567A5"));
+        assertEquals("Access key must be digits, except for the CNPJ part", e.getMessage());
+    }
+
+    @Test
+    void rejectsThePlaceholderGemmaReadFromTheDanfeTemplate() {
+        var e = assertThrows(InvalidValueException.class,
+                () -> new NfeAccessKey("00000-0000-0000-0000-00-0000-0000-0000-000-0"));
+        assertEquals("Access key must have 44 characters, got 35", e.getMessage());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "3522 1011 2223 3300 0181 5500 1000 0123 4511 2345 6787",
+            "35-2210-11.222.333/0001-81-55-001-000.012.345-112.345.678-7"
+    })
+    void acceptsKeyPrintedWithSpacesOrPunctuation(String printed) {
+        assertEquals(VALID, new NfeAccessKey(printed).value());
     }
 
     @Test
