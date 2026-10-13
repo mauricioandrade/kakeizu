@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    {! htmx: no eval, no injected styles (strict CSP), and swap error pages too !}
+    <meta name="htmx-config" content='{|{"allowEval":false,"includeIndicatorStyles":false,"responseHandling":[{"code":"204","swap":false},{"code":"...","swap":true}]}|}'>
+    <title>{#insert title}Kakeizu{/insert}</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <script src="/js/htmx-2.0.11.min.js" integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg" defer></script>
+</head>
+<body>
+{#insert nav}
+<header class="bar">
+    <a class="brand" href="/">Kakeizu</a>
+    <nav>
+        <a href="/">Today</a>
+        <a href="/summary">Summary</a>
+    </nav>
+</header>
+{/insert}
+<main>
+{#insert /}
+</main>
+</body>
+</html>

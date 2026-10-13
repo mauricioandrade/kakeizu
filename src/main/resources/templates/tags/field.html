@@ -1,0 +1,16 @@
+{! Text input with the validation issues for that field. Params: name, label, value, result, hint (optional) !}
+<div class="field{#if result.hasErrorIn(name)} invalid{/if}">
+    <label for="{name}">{label}</label>
+    <input id="{name}" name="{name}" value="{value ?: ''}" maxlength="{maxlength ?: 120}"
+           {#if result.hasErrorIn(name)}aria-invalid="true" aria-describedby="{name}-issues"{/if}>
+    {#if hint??}<small>{hint}</small>{/if}
+    {#let issues=result.issuesFor(name)}
+    {#if issues}
+    <ul class="issues" id="{name}-issues">
+        {#for issue in issues}
+        <li class="{issue.severity.cssClass}">{issue.message}</li>
+        {/for}
+    </ul>
+    {/if}
+    {/let}
+</div>

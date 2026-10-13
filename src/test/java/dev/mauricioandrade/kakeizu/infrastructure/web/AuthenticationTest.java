@@ -18,7 +18,10 @@ class AuthenticationTest {
                 .when().get("/")
                 .then().statusCode(302).header("Location", endsWith("/login"));
         given().redirects().follow(false)
-                .when().post("/spike/extract")
+                .when().post("/receipts")
+                .then().statusCode(302).header("Location", endsWith("/login"));
+        given().redirects().follow(false)
+                .when().get("/summary")
                 .then().statusCode(302).header("Location", endsWith("/login"));
     }
 
@@ -53,11 +56,16 @@ class AuthenticationTest {
 
     @Test
     void sessionCookieOpensTheApp() {
-        // No home page yet (phase 6): reaching the app means 404 instead of a redirect to login
         given().redirects().follow(false)
                 .cookie(TestLogin.COOKIE, TestLogin.sessionCookie())
                 .when().get("/")
-                .then().statusCode(404);
+                .then().statusCode(200).body(containsString("Read receipt"));
+    }
+
+    @Test
+    void stylesheetAndScriptArePublicSoTheLoginPageRenders() {
+        given().redirects().follow(false).when().get("/css/app.css").then().statusCode(200);
+        given().redirects().follow(false).when().get("/js/htmx-2.0.11.min.js").then().statusCode(200);
     }
 
     @Test

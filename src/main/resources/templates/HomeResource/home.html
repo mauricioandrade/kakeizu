@@ -1,0 +1,35 @@
+{#include base}
+<section class="card">
+    <h1>New receipt</h1>
+    {! Plain form that htmx upgrades: the button is disabled and a message shows while the model reads !}
+    <form method="post" action="/receipts" enctype="multipart/form-data"
+          hx-boost="true" hx-indicator="#reading" hx-disabled-elt="find button">
+        <div class="field">
+            <label for="image">Photo of the receipt (JPG or PNG)</label>
+            <input id="image" name="image" type="file" accept="image/jpeg,image/png" capture="environment" required>
+        </div>
+        <button type="submit">Read receipt</button>
+        <p id="reading" class="htmx-indicator muted" role="status">Reading the receipt… the first one of the day can take a minute.</p>
+    </form>
+</section>
+
+<section class="card">
+    <h2>Today · {today}</h2>
+    {#if receipts}
+    <ul class="receipts">
+        {#for receipt in receipts}
+        <li>
+            <a href="/receipts/{receipt.id}/review">
+                <span class="who">{receipt.fields.counterparty ?: 'Unknown'}</span>
+                <span class="amount">{receipt.fields.amount ?: '—'}</span>
+                <span class="badge {receipt.status.cssClass}">{receipt.status.label}</span>
+            </a>
+        </li>
+        {/for}
+    </ul>
+    {#else}
+    <p class="muted">No receipts uploaded today.</p>
+    {/if}
+    <p><a href="/summary?date={today}">See today's summary</a></p>
+</section>
+{/include}

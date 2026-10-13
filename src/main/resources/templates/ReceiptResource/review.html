@@ -1,0 +1,68 @@
+{#include base}
+{#title}Kakeizu · Review{/title}
+<section class="review">
+    <figure class="card">
+        <a href="/receipts/{receipt.id}/image" target="_blank" rel="noopener">
+            <img src="/receipts/{receipt.id}/image" alt="Uploaded receipt">
+        </a>
+    </figure>
+
+    <div class="card">
+        <h1>Review <span class="badge {receipt.status.cssClass}">{receipt.status.label}</span></h1>
+        {#if duplicate}
+        <p class="alert" role="status">This image was already uploaded. Showing the existing receipt.</p>
+        {/if}
+        {#if receipt.pending}
+        <p class="muted">The model read the fields below. Check them against the photo and fix anything wrong.</p>
+        {#if !result.valid}
+        <p class="alert" role="alert">Some fields need fixing before this receipt can be confirmed.</p>
+        {/if}
+        {/if}
+
+        <form method="post" action="/receipts/{receipt.id}/confirm">
+            <fieldset{#if !receipt.pending} disabled{/if}>
+            <div class="field{#if result.hasErrorIn('type')} invalid{/if}">
+                <label for="type">Type</label>
+                <select id="type" name="type">
+                    <option value="">Choose…</option>
+                    {#for t in types}
+                    <option value="{t}"{#if t.name == result.fields.type} selected{/if}>{t.label}</option>
+                    {/for}
+                </select>
+                {#if result.issuesFor('type')}
+                <ul class="issues">
+                    {#for issue in result.issuesFor('type')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
+                </ul>
+                {/if}
+            </div>
+            {#field name='amount' label='Amount' value=result.fields.amount result=result maxlength=30 hint='1234.56 or 1.234,56' /}
+            {#field name='date' label='Date' value=result.fields.date result=result maxlength=10 hint='yyyy-mm-dd' /}
+            {#field name='counterparty' label='Issuer / payer' value=result.fields.counterparty result=result /}
+            {#field name='taxId' label='CNPJ' value=result.fields.taxId result=result maxlength=30 /}
+            {#field name='uniqueId' label='Unique ID' value=result.fields.uniqueId result=result maxlength=60 hint='NF-e/NFC-e access key, Pix ID or card authorization code' /}
+            <div class="field">
+                <label for="category">Category</label>
+                <select id="category" name="category">
+                    {#for c in categories}
+                    <option value="{c}"{#if c == result.category} selected{/if}>{c.label}</option>
+                    {/for}
+                </select>
+                {#if result.issuesFor('category')}
+                <ul class="issues">
+                    {#for issue in result.issuesFor('category')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
+                </ul>
+                {/if}
+            </div>
+            </fieldset>
+            {#if receipt.pending}
+            <button type="submit">Confirm</button>
+            {/if}
+        </form>
+        {#if receipt.pending}
+        <form method="post" action="/receipts/{receipt.id}/reject">
+            <button type="submit" class="secondary">Reject</button>
+        </form>
+        {/if}
+    </div>
+</section>
+{/include}

@@ -1,22 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Kakeizu · Login</title>
-</head>
-<body>
-<main>
+{#include base}
+{#title}Kakeizu · Sign in{/title}
+{#nav}{/nav}
+<section class="card narrow">
     <h1>Kakeizu</h1>
+    <p class="muted">Receipts read on this machine. Nothing leaves it.</p>
     {#if error}
-    <p role="alert">Wrong password, or too many attempts. Try again in a minute.</p>
+    <p class="alert" role="alert">Wrong password, or too many attempts. Try again in a minute.</p>
     {/if}
     <form method="post" action="/j_security_check">
         <input type="hidden" name="j_username" value="admin">
-        <label for="password">Password</label>
-        <input id="password" name="j_password" type="password" autocomplete="current-password" required autofocus>
+        <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="j_password" type="password" autocomplete="current-password" required autofocus>
+        </div>
         <button type="submit">Sign in</button>
     </form>
-</main>
-</body>
-</html>
+</section>
+{/include}

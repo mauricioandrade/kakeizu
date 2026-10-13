@@ -1,0 +1,32 @@
+{#include base}
+{#title}Kakeizu · Summary{/title}
+<section class="card">
+    <h1>Summary</h1>
+    <form method="get" action="/summary" class="inline">
+        <label for="date">Day</label>
+        <input id="date" name="date" type="date" value="{summary.day}" required>
+        <button type="submit" class="secondary">Show</button>
+    </form>
+    <p class="total">{summary.total.brl}</p>
+    <p class="muted">{summary.count} confirmed receipt{#if summary.count != 1}s{/if} issued on {summary.day}</p>
+</section>
+
+{#if summary.count > 0}
+<section class="card">
+    <h2>By type</h2>
+    <table>
+        {#for entry in summary.byType.entrySet}
+        <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+</section>
+<section class="card">
+    <h2>By category</h2>
+    <table>
+        {#for entry in summary.byCategory.entrySet}
+        <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
+        {/for}
+    </table>
+</section>
+{/if}
+{/include}
