@@ -12,6 +12,7 @@ import java.util.Base64;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 /**
  * One GPU, one model: readings beyond {@code kakeizu.ai.max-concurrent-readings} wait in line instead of
@@ -20,6 +21,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @ApplicationScoped
 public class GemmaReceiptReader implements ReceiptReader {
 
+    private static final Logger LOG = Logger.getLogger(GemmaReceiptReader.class);
     private static final long MAX_WAIT_SECONDS = 120;
 
     private final ReceiptExtractionService extractionService;
@@ -36,6 +38,7 @@ public class GemmaReceiptReader implements ReceiptReader {
     @Override
     public ModelReading read(byte[] image, String contentType) {
         acquireModelSlot();
+        long start = System.nanoTime();
         ExtractedReceipt extracted;
         try {
             extracted = extractionService.extract(Image.builder()
@@ -47,6 +50,7 @@ public class GemmaReceiptReader implements ReceiptReader {
         } finally {
             modelSlots.release();
         }
+        LOG.infof("Model read the receipt in %d ms", (System.nanoTime() - start) / 1_000_000);
         return new ModelReading(toFields(extracted), toJson(extracted));
     }
 
