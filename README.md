@@ -32,6 +32,8 @@ Dev mode starts PostgreSQL automatically (Dev Services). To run against a standa
 | `KAKEIZU_ADMIN_PASSWORD_HASH` | none in prod (dev/test password: `kakeizu`) |
 | `KAKEIZU_SESSION_KEY` | none in prod; any random string of 16+ characters |
 | `KAKEIZU_ZONE` | `America/Sao_Paulo` |
+| `KAKEIZU_MAX_CONCURRENT_READINGS` | `1` (one GPU, one reading at a time) |
+| `KAKEIZU_TLS_CERT` / `KAKEIZU_TLS_KEY` | none in prod; PEM certificate and key (see below) |
 
 ### Login
 
@@ -43,3 +45,23 @@ export KAKEIZU_ADMIN_PASSWORD_HASH='pbkdf2-sha256:600000:...'
 ```
 
 Local overrides go in `application-local.properties` (gitignored).
+
+### HTTPS (using it from a phone)
+
+Dev mode listens on `localhost` only, over plain HTTP. The packaged app (prod profile) listens on the
+network so phones on the shop Wi-Fi can reach it, and then it **only speaks HTTPS** (port 8443): the
+password and the session cookie never cross the Wi-Fi in clear text. It refuses to start without a
+certificate.
+
+A self-signed certificate is enough for a single shop. Put the machine's LAN IP in it:
+
+```bash
+mkdir -p .certs   # gitignored
+openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj "/CN=kakeizu.local" \
+  -addext "subjectAltName=DNS:localhost,IP:192.168.0.10" \
+  -keyout .certs/kakeizu-key.pem -out .certs/kakeizu.pem
+export KAKEIZU_TLS_CERT=.certs/kakeizu.pem KAKEIZU_TLS_KEY=.certs/kakeizu-key.pem
+```
+
+The phone shows a warning the first time; accept it once. (For no warning at all, use
+[mkcert](https://github.com/FiloSottile/mkcert) and install its CA on the phone.)
