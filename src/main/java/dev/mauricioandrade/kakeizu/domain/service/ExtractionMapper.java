@@ -60,7 +60,7 @@ public class ExtractionMapper {
                 yield buildIfValid(issues, () -> new PixReceipt(amount, date, counterparty, endToEndId));
             }
             case CARD -> {
-                var cnpj = parse("taxId", fields.taxId(), Cnpj::new, issues);
+                var cnpj = parseIfPresent("taxId", fields.taxId(), Cnpj::new, issues);
                 var authorizationCode = blankToNull(fields.uniqueId());
                 yield buildIfValid(issues, () -> new CardReceipt(amount, date, counterparty, cnpj, authorizationCode));
             }
@@ -81,6 +81,11 @@ public class ExtractionMapper {
             issues.add(error(field, e.getMessage()));
             return null;
         }
+    }
+
+    private static <T> T parseIfPresent(String field, String raw, Function<String, T> parser,
+                                        List<ValidationIssue> issues) {
+        return raw == null || raw.isBlank() ? null : parse(field, raw, parser, issues);
     }
 
     private static Optional<Receipt> buildIfValid(List<ValidationIssue> issues, Supplier<Receipt> receipt) {

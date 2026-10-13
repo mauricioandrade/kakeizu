@@ -100,7 +100,8 @@ public class PanacheReceiptRepository implements ReceiptRepository {
             case FiscalInvoice(_, _, _, var cnpj, var accessKey) -> setIdentity(entity, ReceiptType.NFE, cnpj.value(), accessKey.value());
             case FiscalCoupon(_, _, _, var cnpj, var accessKey) -> setIdentity(entity, ReceiptType.NFCE, cnpj.value(), accessKey.value());
             case PixReceipt(_, _, _, var endToEndId) -> setIdentity(entity, ReceiptType.PIX, null, endToEndId.value());
-            case CardReceipt(_, _, _, var cnpj, var authorizationCode) -> setIdentity(entity, ReceiptType.CARD, cnpj.value(), authorizationCode);
+            case CardReceipt(_, _, _, var cnpj, var authorizationCode) ->
+                    setIdentity(entity, ReceiptType.CARD, cnpj == null ? null : cnpj.value(), authorizationCode);
         }
     }
 
@@ -132,7 +133,7 @@ public class PanacheReceiptRepository implements ReceiptRepository {
                     new Cnpj(entity.taxId), new NfeAccessKey(entity.uniqueId));
             case PIX -> new PixReceipt(amount, entity.issuedOn, entity.counterparty, new PixEndToEndId(entity.uniqueId));
             case CARD -> new CardReceipt(amount, entity.issuedOn, entity.counterparty,
-                    new Cnpj(entity.taxId), entity.uniqueId);
+                    entity.taxId == null ? null : new Cnpj(entity.taxId), entity.uniqueId);
         };
     }
 

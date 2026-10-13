@@ -95,6 +95,27 @@ class ExtractionMapperTest {
     }
 
     @Test
+    void cardFromABankAppHasNoCnpjAndIsStillValid() {
+        // Real gemma4:e4b output for a card purchase in the Nubank app, which never shows the merchant CNPJ
+        var result = mapper.map(new ReceiptFields("CARD", "89.82", "2026-09-28", "TOESCA SUPERMERCADO EI",
+                null, "434817", "GOODS"));
+
+        assertTrue(result.isValid());
+        var card = assertInstanceOf(CardReceipt.class, result.receipt().orElseThrow());
+        assertNull(card.merchantCnpj());
+        assertEquals("434817", card.authorizationCode());
+    }
+
+    @Test
+    void cardCnpjIsStillCheckedWhenPresent() {
+        // Real gemma4:e4b output for a Cielo slip: CNPJ 13.458.397/0001-01 misread, caught by the check digits
+        var result = mapper.map(new ReceiptFields("CARD", "13,00", "2016-08-21", "L P TRABALHADOR",
+                "13.438.977/0001-00", "375759", "OTHER"));
+
+        assertEquals(List.of("taxId"), errorFields(result));
+    }
+
+    @Test
     void gemmaOutputForTheLargeStoneSlipIsCaughtOnTheCnpj() {
         // Real gemma3:4b output for samples/card-stone-large.png: a placeholder CNPJ printed on a demo slip
         var result = mapper.map(new ReceiptFields("CARD", "25000.00", "2018-03-15", "DAIANE",
