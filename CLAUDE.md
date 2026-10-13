@@ -257,3 +257,31 @@ Use onde fizer sentido natural, sem forçar:
 - `./mvnw quarkus:dev` sobe com Dev Services e o fluxo completo funciona com Ollama rodando
 - README em inglês: o problema, como rodar (incluindo os dois cenários de Ollama no WSL), screenshots, tabela de acurácia da fase 7, e a seção *Why open matters* (dados financeiros não saem da máquina; custo zero por documento; modelo trocável por propriedade)
 - Nenhuma credencial ou comprovante real não anonimizado no repositório
+
+---
+
+## 12. Checklist de segurança
+
+Triado para a realidade do projeto: app local, um usuário, sem contas. "Fase" indica quando o item é tratado; os demais ficam para a revisão final antes do post.
+
+> ⚠️ **Decisão em aberto — acesso pelo celular.** A seção 8 diz que o dono usa no telefone, ou seja, pela rede do estabelecimento. Sem autenticação, qualquer pessoa no mesmo Wi-Fi vê os dados financeiros. Opções: (a) documentar "só em rede confiável" e manter `localhost` por padrão; (b) senha única + HTTPS (exige dependência nova, ex.: `quarkus-elytron-security-properties-file`). Decidir antes da fase 6.
+
+| Item | Aplica? | Fase | Como |
+|---|---|---|---|
+| SQL injection | Sim | 4 | Panache só com parâmetros (`?1`, `:nome`); nunca concatenar string em query |
+| Migrations | Sim | 4 | Flyway versionado; migration aplicada nunca é editada, só corrigida por uma nova |
+| Rollback | Sim | 4–5 | Dados: `@Transactional` por caso de uso. Schema: Flyway community não tem undo, então migrations forward-only + backup antes de migrar |
+| Secrets fora do código | Sim | 4 | Env vars / `application-local.properties`; `%prod` sem senha default (falha ao subir se faltar) |
+| Logs de segurança | Sim | 4–6 | Não logar dados financeiros (`log-responses` só em `%dev`); logar eventos (upload, confirmação, rejeição, duplicata) com id, sem conteúdo; handler REST com mensagem genérica |
+| Validação de inputs | Sim | 3 ✅ / 6 | Domínio valida tudo que vem do modelo e do formulário; na web: Bean Validation nos records, tamanho máximo de upload, tipo da imagem por magic bytes (não pelo `Content-Type`) |
+| Sanitização / XSS | Sim | 6 | Qute escapa HTML por padrão; proibido `{raw}`. Saída do modelo é input não confiável (uma imagem pode conter texto malicioso ou *prompt injection*): o domínio valida e o humano revisa |
+| Rate limit | Sim | 6 | O recurso caro é a GPU local: limitar extrações simultâneas (semáforo) + `quarkus.http.limits.max-body-size` |
+| CORS | Sim | 6 | Não habilitar: o app é same-origin, e o filtro CORS do Quarkus vem desligado |
+| HTTPS | Depende | 6 | Desnecessário em `localhost`; necessário se for acessado pela rede (ver decisão acima). Quarkus tem TLS nativo |
+| Menor privilégio | Sim | 4 / final | Usuário do banco da aplicação sem superuser; container não-root; Ollama não exposto além do host; diretório de imagens com permissão restrita |
+| Dependências atualizadas | Sim | final | Dependabot no GitHub; `./mvnw quarkus:update`; htmx pinado com hash SRI |
+| Backups automáticos | Sim | final | `pg_dump` agendado + cópia do diretório de imagens; documentar no README |
+| Monitoramento / alertas | Parcial | final | Health check de banco e Ollama (`quarkus-smallrye-health`, dependência nova: perguntar); alertas externos fora do escopo local |
+| Controle de acesso | Não no MVP | — | Sem multiusuário (seção 1). Ver decisão acima |
+| Expiração de sessão | Não no MVP | — | Não há sessão. Volta a valer se entrar login por formulário |
+| MFA | Não no MVP | — | Não há contas |
