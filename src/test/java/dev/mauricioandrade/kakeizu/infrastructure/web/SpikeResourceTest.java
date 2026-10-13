@@ -27,6 +27,7 @@ class SpikeResourceTest {
                 "PIX", "80.00", "2022-08-12", "Pagsmile", "23010551000131", "E00416968202208120422Mmzi9rPYPLT", "OTHER"));
 
         given()
+                .cookie(TestLogin.COOKIE, TestLogin.sessionCookie())
                 .multiPart("image", new File("src/test/resources/samples/pix-inter.png"), "image/png")
                 .when().post("/spike/extract")
                 .then()

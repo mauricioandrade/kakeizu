@@ -29,5 +29,17 @@ Dev mode starts PostgreSQL automatically (Dev Services). To run against a standa
 |---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
 | `KAKEIZU_MODEL` | `gemma4:e4b` |
+| `KAKEIZU_ADMIN_PASSWORD_HASH` | none in prod (dev/test password: `kakeizu`) |
+| `KAKEIZU_SESSION_KEY` | none in prod; any random string of 16+ characters |
+| `KAKEIZU_ZONE` | `America/Sao_Paulo` |
+
+### Login
+
+There is a single `admin` user. Generate the password hash and export it:
+
+```bash
+java src/main/java/dev/mauricioandrade/kakeizu/infrastructure/security/PasswordHasher.java
+export KAKEIZU_ADMIN_PASSWORD_HASH='pbkdf2-sha256:600000:...'
+```
 
 Local overrides go in `application-local.properties` (gitignored).

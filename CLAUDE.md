@@ -58,6 +58,7 @@ Autenticação, multiusuário, integração com SEFAZ, exportação contábil, a
 | Banco | PostgreSQL + Flyway (`quarkus-jdbc-postgresql`, `quarkus-flyway`, `quarkus-hibernate-orm-panache`) |
 | Web | `quarkus-rest` + `quarkus-rest-qute` + htmx (via `<script>` pinado em versão exata) |
 | Validação | `quarkus-hibernate-validator` |
+| Segurança | `quarkus-security` (núcleo, para o form login). Usuário único `admin`, senha com hash PBKDF2 do próprio JDK |
 | Testes | `quarkus-junit5`, `rest-assured`, `quarkus-junit5-mockito` |
 
 **Sem Lombok. Sem Redis** (não há requisito de cache neste projeto).
@@ -105,6 +106,8 @@ dev.mauricioandrade.kakeizu/
     ├── ai/           # GemmaReceiptReader + AI Service do LangChain4j + ExtractedReceipt (record bruto)
     ├── persistence/  # entidades Panache + adapter do repositório
     ├── storage/      # imagens em disco local (diretório configurável)
+    ├── security/     # login do admin: hash da senha, bloqueio por tentativas, IdentityProviders
+    ├── config/       # producers CDI (Clock, serviços do domínio)
     └── web/          # resources REST, templates Qute, request/response records
 ```
 
@@ -264,7 +267,7 @@ Use onde fizer sentido natural, sem forçar:
 
 Triado para a realidade do projeto: app local, um usuário, sem contas. "Fase" indica quando o item é tratado; os demais ficam para a revisão final antes do post.
 
-> ⚠️ **Decisão em aberto — acesso pelo celular.** A seção 8 diz que o dono usa no telefone, ou seja, pela rede do estabelecimento. Sem autenticação, qualquer pessoa no mesmo Wi-Fi vê os dados financeiros. Opções: (a) documentar "só em rede confiável" e manter `localhost` por padrão; (b) senha única + HTTPS (exige dependência nova, ex.: `quarkus-elytron-security-properties-file`). Decidir antes da fase 6.
+> ✅ **Decidido — acesso pelo celular.** O dono usa no telefone, pela rede do estabelecimento; sem login, qualquer aparelho no mesmo Wi-Fi abriria a URL. Solução: form login do Quarkus com usuário fixo `admin` e senha com hash PBKDF2 (variável `KAKEIZU_ADMIN_PASSWORD_HASH`), sessão em cookie criptografado. Consequência: **HTTPS passa a ser obrigatório na fase 6**, senão a senha e o cookie trafegam em texto puro pelo Wi-Fi.
 
 | Item | Aplica? | Fase | Como |
 |---|---|---|---|
@@ -275,13 +278,13 @@ Triado para a realidade do projeto: app local, um usuário, sem contas. "Fase" i
 | Logs de segurança | Sim | 4–6 | Não logar dados financeiros (`log-responses` só em `%dev`); logar eventos (upload, confirmação, rejeição, duplicata) com id, sem conteúdo; handler REST com mensagem genérica |
 | Validação de inputs | Sim | 3 ✅ / 6 | Domínio valida tudo que vem do modelo e do formulário; na web: Bean Validation nos records, tamanho máximo de upload, tipo da imagem por magic bytes (não pelo `Content-Type`) |
 | Sanitização / XSS | Sim | 6 | Qute escapa HTML por padrão; proibido `{raw}`. Saída do modelo é input não confiável (uma imagem pode conter texto malicioso ou *prompt injection*): o domínio valida e o humano revisa |
-| Rate limit | Sim | 6 | O recurso caro é a GPU local: limitar extrações simultâneas (semáforo) + `quarkus.http.limits.max-body-size` |
+| Rate limit | Sim | 4 ✅ / 6 | Login: 5 senhas erradas seguidas bloqueiam por 1 min (`LoginThrottle`). Extração: limitar chamadas simultâneas à GPU (semáforo) + `quarkus.http.limits.max-body-size` |
 | CORS | Sim | 6 | Não habilitar: o app é same-origin, e o filtro CORS do Quarkus vem desligado |
-| HTTPS | Depende | 6 | Desnecessário em `localhost`; necessário se for acessado pela rede (ver decisão acima). Quarkus tem TLS nativo |
+| HTTPS | Sim | 6 | Obrigatório por causa do login pela rede; TLS nativo do Quarkus + cookie `Secure` |
 | Menor privilégio | Sim | 4 / final | Usuário do banco da aplicação sem superuser; container não-root; Ollama não exposto além do host; diretório de imagens com permissão restrita |
 | Dependências atualizadas | Sim | final | Dependabot no GitHub; `./mvnw quarkus:update`; htmx pinado com hash SRI |
 | Backups automáticos | Sim | final | `pg_dump` agendado + cópia do diretório de imagens; documentar no README |
 | Monitoramento / alertas | Parcial | final | Health check de banco e Ollama (`quarkus-smallrye-health`, dependência nova: perguntar); alertas externos fora do escopo local |
-| Controle de acesso | Não no MVP | — | Sem multiusuário (seção 1). Ver decisão acima |
-| Expiração de sessão | Não no MVP | — | Não há sessão. Volta a valer se entrar login por formulário |
-| MFA | Não no MVP | — | Não há contas |
+| Controle de acesso | Sim | 4 ✅ | Tudo exige login, exceto `/login`; usuário único `admin` (sem multiusuário, seção 1) |
+| Expiração de sessão | Sim | 4 ✅ | 30 min de inatividade; cookie `HttpOnly` + `SameSite=Strict`, criptografado com `KAKEIZU_SESSION_KEY` |
+| MFA | Não | — | Usuário único, local; a senha + bloqueio por tentativas cobrem o risco de rede local |
