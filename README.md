@@ -76,3 +76,47 @@ export KAKEIZU_TLS_CERT=.certs/kakeizu.pem KAKEIZU_TLS_KEY=.certs/kakeizu-key.pe
 
 The phone shows a warning the first time; accept it once. (For no warning at all, use
 [mkcert](https://github.com/FiloSottile/mkcert) and install its CA on the phone.)
+
+## Accuracy on real receipts
+
+Measured on 2026-10-13 with `gemma4:e4b` (thinking on, temperature 0), sending exactly the request the
+app sends, and running every answer through the app's own validation. 7 receipts × 3 readings each = 21
+readings, 126 fields:
+
+| Receipt | Readings ready to confirm as read | What went wrong |
+|---|---|---|
+| Pix (Inter) | 3 / 3 | — |
+| Pix (Nubank, real) | 2 / 3 | once dropped a character from the Pix ID: **caught** (length) |
+| Card purchase in a bank app (Nubank, real) | 3 / 3 | — |
+| Cielo debit slip | 0 / 3 | CNPJ misread every time: **caught** (check digits). Authorization code transposed (375579 → 375759): not caught |
+| Stone slip, small | 1 / 3 | took the StoneID as the authorization code twice: **not caught** |
+| Stone slip, demo | 0 / 3 | store name missing twice: **caught**; once the cardholder as the store: **not caught** |
+| NFC-e template | 0 / 3 | fields read right, but the template has no CNPJ and a zeroed access key: **blocked, as it should be** |
+
+Per field, out of 126:
+
+| | Fields |
+|---|---|
+| Right on the first reading | **110** (87%) |
+| Wrong, and the domain flags that field | 6 |
+| Wrong, in a receipt the domain blocks for another field | 6 |
+| Wrong, and nothing flags it | 4 |
+
+Type, amount and date were right in all 21 readings. What slips through are the fields without a check
+digit: authorization codes and names. That is why no receipt is ever confirmed automatically: the app
+puts the photo next to the form and a person decides.
+
+Things learned along the way:
+
+- **Thinking matters more than speed.** With thinking off, a reading takes ~2 s instead of ~13 s, but the
+  model took an item price as the NFC-e total and the card brand as the store: wrong values in a valid
+  format, which no check digit catches.
+- **Temperature 0 is not deterministic.** The same image gave different answers between runs; in earlier
+  runs the NFC-e template total (146,46) came back as 4.46 and 46.46.
+- **The model cannot say null.** LangChain4j sends a strings-only JSON schema, and Ollama enforces it as a
+  grammar, so the model writes the word `"null"`. The AI adapter turns it into a missing field.
+- **Small sample.** 7 receipts, two of them the author's own. Treat these as a sanity check, not a
+  benchmark.
+
+Readings take ~13 s warm (median, 9–16 s) on a consumer GPU; the model is loaded in the background as
+soon as the upload page opens.
