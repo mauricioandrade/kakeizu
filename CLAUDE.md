@@ -35,7 +35,7 @@
 ### Escopo do MVP
 
 - Upload de uma imagem por vez (JPG/PNG)
-- Extração de: tipo, valor, data, nome do emissor/pagador, CNPJ/CPF quando houver, identificador único (chave NF-e ou ID Pix)
+- Extração de: tipo, valor, data, nome do emissor/pagador, CNPJ/CPF quando houver, identificador único (chave NF-e, ID Pix ou código de autorização do cartão)
 - Tela de revisão com campos editáveis e destaque para o que falhou na validação
 - Resumo do dia: total por tipo e por categoria
 - Detecção de duplicata (mesma imagem ou mesmo identificador único)
@@ -93,7 +93,7 @@ Autenticação, multiusuário, integração com SEFAZ, exportação contábil, a
 ```
 dev.mauricioandrade.kakeizu/
 ├── domain/
-│   ├── model/        # Receipt (sealed), Money, Cnpj, NfeAccessKey, PixEndToEndId, ReceiptStatus, Category
+│   ├── model/        # Receipt (sealed), ReceiptFields, Money, Cnpj, NfeAccessKey, PixEndToEndId, ReceiptStatus, Category
 │   ├── port/
 │   │   ├── in/       # ExtractReceiptUseCase, ConfirmReceiptUseCase, DailySummaryUseCase
 │   │   └── out/      # ReceiptReader (IA), ReceiptRepository, ImageStorage
@@ -113,7 +113,7 @@ dev.mauricioandrade.kakeizu/
 ## 6. Modelo de domínio
 
 ```java
-public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt {
+public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt, CardReceipt {
     Money amount();
     LocalDate issuedOn();
     String counterparty();
@@ -127,6 +127,11 @@ public record FiscalCoupon(Money amount, LocalDate issuedOn, String counterparty
 
 public record PixReceipt(Money amount, LocalDate issuedOn, String counterparty,
                          PixEndToEndId endToEndId) implements Receipt {}
+
+// Via do lojista da maquininha (Stone, Cielo...). Decidido no spike da fase 2:
+// é o comprovante mais comum do dia num posto/mercadinho.
+public record CardReceipt(Money amount, LocalDate issuedOn, String counterparty,
+                          Cnpj merchantCnpj, String authorizationCode) implements Receipt {}
 ```
 
 Entidade persistida: `ReceiptRecord` com `id`, `type`, campos acima, `category`, `status` (`PENDING_REVIEW`, `CONFIRMED`, `REJECTED`), `imageSha256`, `rawModelOutput` (JSON, para depuração e para o post), `createdAt`.
@@ -137,7 +142,7 @@ Aqui está o diferencial técnico do projeto: o modelo erra, o domínio pega.
 
 - **`Money`**: aceita `"1234.56"` e `"1.234,56"`; escala 2; rejeita negativo.
 - **`Cnpj`**: 14 dígitos + validação dos dois dígitos verificadores.
-- **`NfeAccessKey`**: 44 dígitos + dígito verificador módulo 11. Os dígitos 3–4 (ano/mês) e 7–20 (CNPJ do emissor) devem bater com os outros campos; se não baterem, gera alerta na revisão, não erro fatal.
+- **`NfeAccessKey`**: 44 dígitos + dígito verificador módulo 11. Os dígitos 3–6 (AAMM) e 7–20 (CNPJ do emissor) devem bater com os outros campos; se não baterem, gera alerta na revisão, não erro fatal.
 - **`PixEndToEndId`**: 32 caracteres, começa com `E`, alfanumérico.
 
 > 📚 **Estudo — por que validar o que a IA devolveu?**
@@ -150,7 +155,7 @@ Aqui está o diferencial técnico do projeto: o modelo erra, o domínio pega.
 ```java
 // infrastructure/ai — o que o modelo devolve, sem confiar em nada
 public record ExtractedReceipt(
-        String type,            // "NFE" | "NFCE" | "PIX" | "UNKNOWN"
+        String type,            // "NFE" | "NFCE" | "PIX" | "CARD" | "UNKNOWN"
         String amount,
         String date,            // ISO-8601
         String counterparty,
@@ -161,7 +166,8 @@ public record ExtractedReceipt(
 @RegisterAiService
 public interface ReceiptExtractionService {
     @SystemMessage("""
-        You read Brazilian payment receipts: NF-e, NFC-e/cupom fiscal and Pix transfer receipts.
+        You read Brazilian payment receipts: NF-e, NFC-e/cupom fiscal, Pix transfer receipts
+        and card machine slips.
         Return only the requested fields. If a field is not visible, return null. Never guess digits.
         """)
     @UserMessage("Extract the receipt data from this image.")
@@ -170,7 +176,8 @@ public interface ReceiptExtractionService {
 ```
 
 - `GemmaReceiptReader` implementa o port `ReceiptReader`, monta a `Image` em base64 e chama o serviço. Confirme na documentação da versão do quarkus-langchain4j a forma atual de passar imagem (anotação e tipo).
-- `ExtractionMapper` (domínio) converte `ExtractedReceipt` → `ExtractionResult`, que contém o `Receipt` candidato (ou campos parciais) **e a lista de problemas de validação**. Use `switch` com pattern matching sobre o tipo.
+- O domínio não enxerga `ExtractedReceipt`: o adapter converte para `ReceiptFields` (domínio, todos `String`). O formulário de revisão devolve o mesmo `ReceiptFields` corrigido, então saída do modelo e correção do humano passam pela **mesma** validação.
+- `ExtractionMapper` (domínio) converte `ReceiptFields` → `ExtractionResult`, que contém o `Receipt` candidato (ou campos parciais) **e a lista de problemas de validação**. Use `switch` com pattern matching sobre o tipo.
 - Categorias iniciais (enum): `FUEL_SUPPLY`, `GOODS`, `SERVICES`, `UTILITIES`, `PAYROLL`, `OTHER`. O modelo sugere, o usuário troca na revisão.
 - Guarde o JSON bruto do modelo em `rawModelOutput`.
 
