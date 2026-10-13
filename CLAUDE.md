@@ -133,6 +133,8 @@ public record PixReceipt(Money amount, LocalDate issuedOn, String counterparty,
 
 // Via do lojista da maquininha (Stone, Cielo...). Decidido no spike da fase 2:
 // é o comprovante mais comum do dia num posto/mercadinho.
+// Fase 7: também o comprovante de compra no app do banco, que nunca mostra o CNPJ da loja.
+// CNPJ e código de autorização são opcionais; se o CNPJ vier, os DVs são validados.
 public record CardReceipt(Money amount, LocalDate issuedOn, String counterparty,
                           Cnpj merchantCnpj, String authorizationCode) implements Receipt {}
 ```
