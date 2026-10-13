@@ -118,12 +118,13 @@ class PanacheReceiptRepositoryTest {
 
     @Test
     void listsCreatedInRangeNewestFirst() {
-        var morning = pending(INVALID_FIELDS, Instant.parse("2026-10-13T11:00:00Z"));
-        var evening = pending(INVALID_FIELDS, Instant.parse("2026-10-13T22:00:00Z"));
-        var nextDay = pending(INVALID_FIELDS, Instant.parse("2026-10-14T03:00:00Z"));
+        var morning = pending(INVALID_FIELDS, Instant.parse("2020-03-10T11:00:00Z"));
+        var evening = pending(INVALID_FIELDS, Instant.parse("2020-03-10T22:00:00Z"));
+        var nextDay = pending(INVALID_FIELDS, Instant.parse("2020-03-11T03:00:00Z"));
         Stream.of(morning, evening, nextDay).forEach(repository::save);
 
-        var found = repository.findCreatedBetween(Instant.parse("2026-10-13T03:00:00Z"), Instant.parse("2026-10-14T03:00:00Z"));
+        // Far from "now": other tests commit receipts created today
+        var found = repository.findCreatedBetween(Instant.parse("2020-03-10T03:00:00Z"), Instant.parse("2020-03-11T03:00:00Z"));
 
         assertEquals(List.of(evening.id(), morning.id()), found.stream().map(ReceiptRecord::id).toList());
     }
