@@ -6,6 +6,17 @@ A receipt reader for small business owners that runs **100% locally**: a photo g
 
 **The AI suggests, the domain validates, the human decides.**
 
+## The problem
+
+The owner or manager of a gas station, a corner shop or a small restaurant gets dozens of receipts a day:
+NFC-e, card machine slips, Pix receipts, the odd cheque. Closing the day means typing amount, date and who
+paid or got paid into a spreadsheet, one receipt at a time. Cloud tools do this, but they want the
+business's financial data on someone else's server and charge per document.
+
+Kakeizu does it on the shop's own computer: take a photo on the phone, a local Gemma model reads it, the
+domain checks every digit it can (CNPJ and access-key check digits, Pix ID format, dates), and a person
+confirms. Nothing is confirmed automatically.
+
 > 🚧 Work in progress for the DEV Hacktoberfest Open-Source AI Challenge.
 
 ## Stack
@@ -21,7 +32,43 @@ ollama pull gemma4:e4b
 ./mvnw quarkus:dev
 ```
 
-Dev mode starts PostgreSQL automatically (Dev Services). To run against a standalone database, use `docker compose up -d`.
+Dev mode starts PostgreSQL automatically (Dev Services).
+
+### Ollama on Windows or inside WSL
+
+Developed on Windows 11 + WSL2. Ollama can run on either side:
+
+- **Inside WSL:** the default `http://localhost:11434` just works.
+- **On Windows** (better GPU use): with `networkingMode=mirrored` in `%UserProfile%\.wslconfig`, `localhost`
+  works from WSL too:
+
+  ```ini
+  [wsl2]
+  networkingMode=mirrored
+  ```
+
+  Without mirrored networking, point the app at the Windows host instead (and set `OLLAMA_HOST=0.0.0.0`
+  on Windows so Ollama listens beyond localhost, then allow port 11434 in the firewall for the WSL network
+  only):
+
+  ```bash
+  export OLLAMA_BASE_URL="http://$(ip route show default | awk '{print $3}'):11434"
+  ```
+
+Either way, keep Ollama off the shop Wi-Fi: only Kakeizu needs to talk to it.
+
+### Standalone database
+
+Outside dev mode, `docker compose up -d` starts PostgreSQL on `127.0.0.1` only. Put two passwords in a
+`.env` file (gitignored) first:
+
+```bash
+POSTGRES_PASSWORD=...   # superuser, for maintenance only
+DB_PASSWORD=...         # the app's own role, which is not a superuser
+```
+
+On first start it creates the `kakeizu` role that owns the database (so Flyway can create the tables)
+but cannot create roles or databases. The app reads the same `DB_PASSWORD`.
 
 ### Configuration
 
@@ -78,6 +125,19 @@ export KAKEIZU_TLS_CERT=.certs/kakeizu.pem KAKEIZU_TLS_KEY=.certs/kakeizu-key.pe
 
 The phone shows a warning the first time; accept it once. (For no warning at all, use
 [mkcert](https://github.com/FiloSottile/mkcert) and install its CA on the phone.)
+
+### Backups
+
+`scripts/backup.sh` writes a `pg_dump` of the database and a copy of the receipt photos to
+`~/kakeizu-backups` (or `KAKEIZU_BACKUP_DIR`), keeping 14 days. Schedule it with cron:
+
+```cron
+0 23 * * * cd /path/to/kakeizu && scripts/backup.sh
+```
+
+Restore with `pg_restore -d kakeizu kakeizu-<date>.dump` and by unpacking the photos into `data/images`.
+Copy the backup folder to another disk now and then: a backup on the same machine does not survive a
+dead disk. Flyway migrations only go forward, so take a backup before upgrading.
 
 ## Sales report
 
@@ -180,3 +240,14 @@ What changed the prompt this round:
 
 Readings take ~15 s warm (median, 12–19 s) on a consumer GPU; the model is loaded in the background as
 soon as the upload page opens.
+
+## Why open matters
+
+- **The data never leaves the shop.** Receipts are the business's sales, suppliers and customers' names.
+  The model, the database and the photos all live on the owner's computer.
+- **Zero cost per document.** No API bill that grows with the number of receipts; a consumer GPU reads one
+  in ~15 s.
+- **The model is a setting.** `KAKEIZU_MODEL` swaps Gemma for any Ollama vision model, and the same
+  validation and accuracy check apply to the new one. When a better small open model comes out, the shop
+  gets it for free.
+- **Open model, open checks.** Anyone can read every check the domain makes on what the model returns.
