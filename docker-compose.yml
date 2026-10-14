@@ -2,7 +2,7 @@
 # Put the two passwords in .env (gitignored): POSTGRES_PASSWORD (superuser, admin only) and DB_PASSWORD (the app).
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: kakeizu
       POSTGRES_USER: postgres
