@@ -116,7 +116,7 @@ dev.mauricioandrade.kakeizu/
 ## 6. Modelo de domínio
 
 ```java
-public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt, CardReceipt {
+public sealed interface Receipt permits FiscalInvoice, FiscalCoupon, PixReceipt, CardReceipt, ChequeReceipt {
     Money amount();
     LocalDate issuedOn();
     String counterparty();
@@ -128,6 +128,8 @@ public record FiscalInvoice(Money amount, LocalDate issuedOn, String counterpart
 public record FiscalCoupon(Money amount, LocalDate issuedOn, String counterparty,
                            Cnpj issuerCnpj, NfeAccessKey accessKey) implements Receipt {}
 
+// Fase 7: o Pix feito na maquininha (Getnet, Stone...) imprime o ID da transação da máquina, não o
+// end-to-end ID; por isso endToEndId é opcional e, se vier, é validado.
 public record PixReceipt(Money amount, LocalDate issuedOn, String counterparty,
                          PixEndToEndId endToEndId) implements Receipt {}
 
@@ -137,13 +139,20 @@ public record PixReceipt(Money amount, LocalDate issuedOn, String counterparty,
 // CNPJ e código de autorização são opcionais; se o CNPJ vier, os DVs são validados.
 public record CardReceipt(Money amount, LocalDate issuedOn, String counterparty,
                           Cnpj merchantCnpj, String authorizationCode) implements Receipt {}
+
+// Fase 7: cheque, só se o estabelecimento aceitar (KAKEIZU_SHOP_ACCEPTS_CHEQUES, padrão false; se desligado,
+// cheque ou NFC-e paga em cheque viram erro na revisão). counterparty é quem paga (o titular impresso).
+// CMC-7 opcional (o modelo não lê a linha magnética da foto); se vier, os 3 DVs módulo 10 são validados e ele
+// deduplica. Cheque pré-datado gera só alerta.
+public record ChequeReceipt(Money amount, LocalDate issuedOn, String counterparty, Cmc7 cmc7) implements Receipt {}
 ```
 
 Fase 7 (decidido com o usuário): cada comprovante confirmado também guarda `Payment(time, method, installments, brand)`
-(`PaymentMethod`: CASH, CREDIT, DEBIT, PIX, OTHER; `CardBrand`: VISA, MASTERCARD, ELO, AMEX, HIPERCARD, OTHER) e
+(`PaymentMethod`: CASH, CREDIT, DEBIT, PIX, CHEQUE, OTHER; `CardBrand`: VISA, MASTERCARD, ELO, AMEX, HIPERCARD, OTHER) e
 `Direction` (SALE/EXPENSE). Regras: Pix é sempre PIX; cartão é CREDIT ou DEBIT; só crédito parcela (1–24); bandeira só
 em cartão. Venda/gasto vem do CNPJ da loja (`KAKEIZU_SHOP_CNPJ`): quem recebeu foi a loja → venda; outro CNPJ → gasto;
-sem CNPJ ou com CPF → a pessoa escolhe. Migration `V2__add_payment_details.sql`.
+sem CNPJ ou com CPF → a pessoa escolhe. No cheque é ao contrário (o CNPJ é de quem paga): CNPJ da loja → gasto,
+outro → venda. Migration `V2__add_payment_details.sql`.
 
 Entidade persistida: `ReceiptRecord` com `id`, `type`, campos acima, `category`, `status` (`PENDING_REVIEW`, `CONFIRMED`, `REJECTED`), `imageSha256`, `rawModelOutput` (JSON, para depuração e para o post), `createdAt`.
 
@@ -204,7 +213,7 @@ public interface ReceiptExtractionService {
 | `POST /receipts/{id}/confirm` | Revalida com os dados corrigidos e confirma |
 | `POST /receipts/{id}/reject` | Rejeita |
 | `GET /summary?date=` | Totais do dia por tipo e categoria (só `CONFIRMED`) |
-| `GET /report?from=&to=` | Vendas confirmadas no período: por hora, dia da semana, forma, parcelas e bandeira. NF-e/NFC-e paga com cartão ou Pix é pareada com o slip/Pix de mesmo valor, mesmo dia e até 15 min de diferença e conta uma vez só (fase 7) |
+| `GET /report?from=&to=` | Vendas confirmadas no período: por hora, dia da semana, forma, parcelas e bandeira. NF-e/NFC-e paga com cartão, Pix ou cheque é pareada com o slip/Pix/cheque de mesmo valor, mesmo dia e até 15 min de diferença e conta uma vez só (fase 7) |
 
 Qute + htmx, sem build de frontend. Visual limpo e legível no celular (o dono do posto vai usar no telefone).
 

@@ -33,6 +33,7 @@ Dev mode starts PostgreSQL automatically (Dev Services). To run against a standa
 | `KAKEIZU_SESSION_KEY` | none in prod; any random string of 16+ characters |
 | `KAKEIZU_ZONE` | `America/Sao_Paulo` |
 | `KAKEIZU_SHOP_CNPJ` | none; the shop's own CNPJ, to tell sales from expenses |
+| `KAKEIZU_SHOP_ACCEPTS_CHEQUES` | `false`; set to `true` if the shop takes cheques |
 | `KAKEIZU_MAX_CONCURRENT_READINGS` | `1` (one GPU, one reading at a time) |
 | `KAKEIZU_TLS_CERT` / `KAKEIZU_TLS_KEY` | none in prod; PEM certificate and key (see below) |
 
@@ -81,17 +82,26 @@ The phone shows a warning the first time; accept it once. (For no warning at all
 ## Sales report
 
 `/report` shows the confirmed **sales** in a date range (last 30 days by default): totals by time of day,
-by day of the week, by payment method (cash, credit, debit, Pix), credit upfront vs. in installments, and
-by card brand.
+by day of the week, by payment method (cash, credit, debit, Pix, cheque), credit upfront vs. in
+installments, and by card brand.
 
 - **Sale or expense.** Set `KAKEIZU_SHOP_CNPJ` to the shop's own CNPJ. When the shop is the one who
   received the money, the receipt is a sale; any other CNPJ is an expense. With no CNPJ on the receipt (a
-  Pix to a person, a bank app), the person chooses on review.
+  Pix to a person, a bank app), the person chooses on review. A cheque is the other way round: it names who
+  pays, so a cheque written by another company is a sale.
 - **Each sale counted once.** A card sale often leaves two receipts: the NFC-e and the card slip. An
-  NF-e/NFC-e paid by card or Pix is paired with a card slip or Pix receipt of the same amount, on the same
-  day, at most 15 minutes apart, and only the slip counts. Pairs are one to one, so two equal sales in a row
+  NF-e/NFC-e paid by card, Pix or cheque is paired with a card slip, Pix receipt or cheque of the same
+  amount, on the same day, at most 15 minutes apart (a cheque has no time, so the day is enough), and only
+  the slip counts. Pairs are one to one, so two equal sales in a row
   stay two sales, and an NFC-e with no slip still counts. Cash NFC-e always count: there is no other
   receipt for cash.
+- **Cheques, only if the shop takes them.** With `KAKEIZU_SHOP_ACCEPTS_CHEQUES=true` a photo of a cheque is
+  read as a cheque. The magnetic line at the bottom (CMC-7) is optional, because the model cannot read it
+  from a photo; when typed, its three check digits are verified and it stops the same cheque from being
+  entered twice. A post-dated cheque only gets a warning. Without the setting, a cheque, or an NFC-e paid by
+  cheque, is flagged on review.
+- **Pix on the card machine.** The slip shows the machine's own transaction ID, not the Pix end-to-end ID,
+  so a Pix without an end-to-end ID is accepted and deduplicated by the photo only.
 
 ## Accuracy on real receipts
 
@@ -141,6 +151,31 @@ Things learned along the way:
   receipt was read three times.
 - **Small sample.** 7 receipts, two of them the author's own. Treat these as a sanity check, not a
   benchmark.
+
+### Second round: a gas station's day
+
+Four real receipts from a gas station (photos taken on a phone, some sideways), read three times each
+with the current prompt:
+
+| Receipt | Readings ready to confirm as read | What went wrong |
+|---|---|---|
+| Getnet debit slip | 3 / 3 | — |
+| NFC-e paid in cash | 2 / 3 | once a CNPJ digit dropped: **caught** (length). The 44-digit access key was right every time |
+| Getnet Pix slip | 0 / 3 | the machine's own transaction ID taken as the Pix end-to-end ID: **caught** (length and prefix); the person clears it on review. The sideways CNPJ was missed |
+| Cheque (handwritten) | 1 / 3 | year read as 2022 instead of 2026 every time and the payer's name misspelled: **not caught**. Once the cheque number was taken as the magnetic line: **caught** (CMC-7 check digits) |
+
+What changed the prompt this round:
+
+- **A Pix paid on the card machine looked like a card slip.** The model never noticed the small Pix logo;
+  describing the slip ("an ID/TRANSAÇÃO and no card brand, no card number, no AUT code") took it from CARD
+  in 3 of 3 readings to PIX in 3 of 3. Asking it in the same prompt to also leave the transaction ID out
+  sent it back to CARD, so that part stays with the domain check.
+- **The NFC-e access key.** The model returned the note number (NFC-e nº) until the prompt said where the
+  key is printed: all 44 digits, in groups of 4, under "Consulte pela Chave de Acesso".
+- **Regression check.** The 7 receipts of the first round were read again with the new prompt: no new
+  misses. One surprise: on the same day the NFC-e template's total (146,46) came back as 46,46 in 3 of 3
+  readings with **both** the old and the new prompt, after being right in every reading before: a
+  well-formed wrong amount that no check digit can catch. One more reason a person confirms every receipt.
 
 Readings take ~15 s warm (median, 12–19 s) on a consumer GPU; the model is loaded in the background as
 soon as the upload page opens.
