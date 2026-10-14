@@ -4,16 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.mauricioandrade.kakeizu.domain.exception.InvalidValueException;
-import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
-import dev.mauricioandrade.kakeizu.domain.model.NfeAccessKey;
+import dev.mauricioandrade.kakeizu.domain.model.CheckDigitField;
 import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Ambiguous;
 import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Recovered;
 import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Unrecoverable;
 import dev.mauricioandrade.kakeizu.domain.model.RecoverySource;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,8 +19,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class CheckDigitRecoveryTest {
 
-    private static final Predicate<String> VALID_CNPJ = passes(Cnpj::new);
-    private static final Predicate<String> VALID_KEY = passes(NfeAccessKey::new);
+    private static final Predicate<String> VALID_CNPJ = CheckDigitField.CNPJ::isValid;
+    private static final Predicate<String> VALID_KEY = CheckDigitField.NFE_ACCESS_KEY::isValid;
 
     private static final String CNPJ = "23010551000131";
     // State 35, October 2026, the CNPJ above, NFC-e, series 1, note 123451, random code 12345678
@@ -166,7 +164,7 @@ class CheckDigitRecoveryTest {
     }
 
     private static List<String> singleConfusions(String value) {
-        var misreads = new java.util.ArrayList<String>();
+        var misreads = new ArrayList<String>();
         for (int i = 0; i < value.length(); i++) {
             for (char c : CheckDigitRecovery.CONFUSIONS.getOrDefault(value.charAt(i), "").toCharArray()) {
                 misreads.add(swap(value, i, c));
@@ -212,16 +210,5 @@ class CheckDigitRecoveryTest {
             digits.append(random.nextInt(10));
         }
         return digits.toString();
-    }
-
-    private static Predicate<String> passes(Function<String, ?> valueObject) {
-        return raw -> {
-            try {
-                valueObject.apply(raw);
-                return true;
-            } catch (InvalidValueException _) {
-                return false;
-            }
-        };
     }
 }
