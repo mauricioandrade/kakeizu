@@ -69,6 +69,22 @@ flowchart LR
 
 The model's answer and the person's corrections go through **the same** validation.
 
+### 🗂️ Several photos at once
+
+Up to 5 photos can go in one upload. Each one is read on its own virtual thread inside a
+[structured task scope](https://openjdk.org/jeps/505): every photo gets an answer, a photo the model
+cannot read does not stop the others, and no thread outlives the request. With one GPU the model still
+reads one photo at a time, so this is about shape, not speed.
+
+Every log line of an upload carries a correlation id held in a
+[scoped value](https://openjdk.org/jeps/506), which the forked threads inherit:
+
+```
+(executor-thread-1)  [e618ffe0] Batch of 2 photos
+(batch-e618ffe0-1)   [e618ffe0/1] Model read the receipt in 11512 ms
+(batch-e618ffe0-2)   [e618ffe0/2] Model read the receipt in 10985 ms
+```
+
 ## 📸 Screenshots
 
 | 📱 Today | 🔍 Review | 📊 Sales report |
@@ -87,7 +103,7 @@ no check digit, so the person is the one who catches it.
 
 | | |
 |---|---|
-| ☕ Language | Java 25 (records, sealed interfaces, pattern matching, flexible constructor bodies) |
+| ☕ Language | Java 25 (records, sealed interfaces, pattern matching, flexible constructor bodies, scoped values; structured concurrency as a preview) |
 | ⚡ Framework | Quarkus 3.40, Maven |
 | 🤖 AI | LangChain4j + Ollama, `gemma4:e4b` by default (any Ollama vision model works) |
 | 🐘 Database | PostgreSQL 16 + Flyway |
@@ -107,6 +123,9 @@ ollama pull gemma4:e4b
 
 Open http://localhost:8080 and log in with the dev password `kakeizu`. Dev mode starts PostgreSQL by
 itself (Dev Services).
+
+Structured concurrency is still a preview in Java 25, so the packaged app needs the flag too:
+`java --enable-preview -jar target/quarkus-app/quarkus-run.jar`.
 
 <br clear="right">
 
