@@ -59,7 +59,7 @@ class AuthenticationTest {
         given().redirects().follow(false)
                 .cookie(TestLogin.COOKIE, TestLogin.sessionCookie())
                 .when().get("/")
-                .then().statusCode(200).body(containsString("Read receipt"));
+                .then().statusCode(200).body(containsString("Photo of a receipt"));
     }
 
     @Test

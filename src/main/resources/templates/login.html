@@ -1,11 +1,18 @@
 {#include base}
 {#title}Kakeizu · Sign in{/title}
+{#page}login{/page}
 {#nav}{/nav}
-<section class="card narrow">
-    <h1>Kakeizu</h1>
-    <p class="muted">Receipts read on this machine. Nothing leaves it.</p>
+<div class="login-mark">
+    <span class="wordmark-name">Kakeizu</span>
+    <p>Receipts read on this machine. Nothing leaves it.</p>
+</div>
+<section class="slip" aria-labelledby="login-title">
+    <div class="slip-head">
+        <h1 class="slip-title" id="login-title">Sign in</h1>
+        <span class="slip-meta">admin</span>
+    </div>
     {#if error}
-    <p class="alert" role="alert">Wrong password, or too many attempts. Try again in a minute.</p>
+    <p class="notice notice-error" role="alert"><strong>Wrong password, or too many attempts.</strong>Try again in a minute.</p>
     {/if}
     <form method="post" action="/j_security_check">
         <input type="hidden" name="j_username" value="admin">
@@ -13,7 +20,7 @@
             <label for="password">Password</label>
             <input id="password" name="j_password" type="password" autocomplete="current-password" required autofocus>
         </div>
-        <button type="submit">Sign in</button>
+        <button type="submit" class="btn-wide">Sign in</button>
     </form>
 </section>
 {/include}

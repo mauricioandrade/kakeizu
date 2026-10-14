@@ -6,9 +6,7 @@ import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
 import dev.mauricioandrade.kakeizu.domain.port.in.ExtractReceiptUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.out.ImageStorage;
-import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptReader;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptRepository;
-import dev.mauricioandrade.kakeizu.domain.service.ExtractionMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import java.security.MessageDigest;
@@ -18,26 +16,24 @@ import java.util.HexFormat;
 import org.jboss.logging.Logger;
 
 /**
- * Not transactional on purpose: the model call can take a minute and must not hold a database connection.
- * The request context is activated instead, so the repository also works on a batch's own virtual threads.
+ * Saves the photo and queues it for the model; the reading itself happens in the background.
+ * The request context is activated so the repository also works on a batch's own virtual threads.
  */
 @ApplicationScoped
 public class ExtractReceiptService implements ExtractReceiptUseCase {
 
     private static final Logger LOG = Logger.getLogger(ExtractReceiptService.class);
 
-    private final ReceiptReader reader;
+    private final BackgroundReceiptReader backgroundReader;
     private final ReceiptRepository repository;
     private final ImageStorage storage;
-    private final ExtractionMapper mapper;
     private final Clock clock;
 
-    public ExtractReceiptService(ReceiptReader reader, ReceiptRepository repository, ImageStorage storage,
-                                 ExtractionMapper mapper, Clock clock) {
-        this.reader = reader;
+    public ExtractReceiptService(BackgroundReceiptReader backgroundReader, ReceiptRepository repository,
+                                 ImageStorage storage, Clock clock) {
+        this.backgroundReader = backgroundReader;
         this.repository = repository;
         this.storage = storage;
-        this.mapper = mapper;
         this.clock = clock;
     }
 
@@ -51,11 +47,8 @@ public class ExtractReceiptService implements ExtractReceiptUseCase {
             return new UploadResult.AlreadyUploaded(existing.get());
         }
 
-        var reading = reader.read(image, contentType);
-        var category = mapper.map(reading.fields()).category();
         storage.store(sha256, image);
-        var receipt = ReceiptRecord.pending(reading.fields(), category, sha256, contentType, reading.rawOutput(),
-                clock.instant());
+        var receipt = ReceiptRecord.reading(sha256, contentType, clock.instant());
         try {
             repository.save(receipt);
         } catch (DuplicateReceiptException e) {
@@ -64,8 +57,9 @@ public class ExtractReceiptService implements ExtractReceiptUseCase {
                     .<UploadResult>map(UploadResult.AlreadyUploaded::new)
                     .orElseThrow(() -> e);
         }
-        LOG.infof("[%s] Receipt %s extracted, pending review", Correlation.id(), receipt.id());
-        return new UploadResult.Extracted(receipt);
+        LOG.infof("[%s] Receipt %s uploaded, queued for reading", Correlation.id(), receipt.id());
+        backgroundReader.submit(receipt.id());
+        return new UploadResult.Queued(receipt);
     }
 
     private static String sha256(byte[] content) {

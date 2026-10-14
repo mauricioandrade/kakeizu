@@ -1,32 +1,39 @@
 {#include base}
 {#title}Kakeizu · Summary{/title}
-<section class="card">
-    <h1>Summary</h1>
-    <form method="get" action="/summary" class="inline">
-        <label for="date">Day</label>
-        <input id="date" name="date" type="date" value="{summary.day}" required>
-        <button type="submit" class="secondary">Show</button>
+{#page}summary{/page}
+{#currentSummary} aria-current="page"{/currentSummary}
+<section class="slip" aria-labelledby="summary-title">
+    <div class="slip-head">
+        <h1 class="slip-title" id="summary-title">Day summary</h1>
+        <span class="slip-meta">{summary.day}</span>
+    </div>
+    <form method="get" action="/summary" class="datebar">
+        <div class="field">
+            <label for="date">Day</label>
+            <input id="date" name="date" type="date" value="{summary.day}" required>
+        </div>
+        <button type="submit" class="btn-quiet">Show</button>
     </form>
-    <p class="total">{summary.total.brl}</p>
-    <p class="muted">{summary.count} confirmed receipt{#if summary.count != 1}s{/if} issued on {summary.day}</p>
-</section>
 
-{#if summary.count > 0}
-<section class="card">
-    <h2>By type</h2>
-    <table>
+    {#if summary.count > 0}
+    <h2 class="section-title">By type</h2>
+    <table class="rows">
         {#for entry in summary.byType.entrySet}
         <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
         {/for}
     </table>
-</section>
-<section class="card">
-    <h2>By category</h2>
-    <table>
+    <h2 class="section-title">By category</h2>
+    <table class="rows">
         {#for entry in summary.byCategory.entrySet}
         <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
         {/for}
     </table>
+    {/if}
+
+    <div class="grand">
+        <span class="label">TOTAL</span>
+        <span class="value">{summary.total.brl}</span>
+    </div>
+    <p class="slip-note">{summary.count} confirmed receipt{#if summary.count != 1}s{/if} issued on {summary.day}. Receipts still to review are not counted.</p>
 </section>
-{/if}
 {/include}

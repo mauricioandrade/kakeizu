@@ -1,8 +1,10 @@
 {#include base}
 {#title}Kakeizu · Error{/title}
-<section class="card narrow">
-    <h1>Something went wrong</h1>
-    <p class="alert" role="alert">{message}</p>
-    <p><a href="/">Back to today's receipts</a></p>
+<section class="slip" aria-labelledby="error-title">
+    <div class="slip-head">
+        <h1 class="slip-title" id="error-title">Not done</h1>
+    </div>
+    <p class="notice notice-error" role="alert">{message}</p>
+    <p class="slip-foot"><a href="/">Back to today's receipts</a></p>
 </section>
 {/include}

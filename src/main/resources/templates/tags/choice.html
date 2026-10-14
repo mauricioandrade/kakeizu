@@ -1,0 +1,16 @@
+{! Select with the validation issues for that field. The options come from the caller's nested content !}
+<div class="field{#if result.hasErrorIn(name)} invalid{/if}">
+    <label for="{name}">{label}</label>
+    <select id="{name}" name="{name}"{#if result.hasErrorIn(name)} aria-invalid="true" aria-describedby="{name}-issues"{/if}>
+        {nested-content}
+    </select>
+    {#let issues=result.issuesFor(name)}
+    {#if issues}
+    <ul class="issues" id="{name}-issues">
+        {#for issue in issues}
+        <li class="{issue.severity.cssClass}">{issue.message}</li>
+        {/for}
+    </ul>
+    {/if}
+    {/let}
+</div>

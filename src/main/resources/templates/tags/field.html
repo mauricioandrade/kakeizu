@@ -1,7 +1,7 @@
-{! Text input with the validation issues for that field. Params: name, label, value, result, hint (optional) !}
+{! Text input with the validation issues for that field. Params: name, label, value, result, hint, maxlength, num (all optional but the first four) !}
 <div class="field{#if result.hasErrorIn(name)} invalid{/if}">
     <label for="{name}">{label}</label>
-    <input id="{name}" name="{name}" value="{value ?: ''}" maxlength="{maxlength ?: 120}"
+    <input id="{name}" name="{name}" value="{value ?: ''}" maxlength="{maxlength ?: 120}"{#if num??} class="num" inputmode="{num}" autocomplete="off" spellcheck="false"{/if}
            {#if result.hasErrorIn(name)}aria-invalid="true" aria-describedby="{name}-issues"{/if}>
     {#if hint??}<small>{hint}</small>{/if}
     {#let issues=result.issuesFor(name)}

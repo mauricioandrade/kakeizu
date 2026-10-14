@@ -1,111 +1,116 @@
 {#include base}
 {#title}Kakeizu · Review{/title}
-<section class="review">
-    <figure class="card">
+{#page}review{/page}
+<section class="review"{#if receipt.reading} hx-get="/receipts/{receipt.id}/review" hx-trigger="every 2s" hx-select="main" hx-target="main" hx-swap="outerHTML"{/if}>
+    <figure class="photo">
         <a href="/receipts/{receipt.id}/image" target="_blank" rel="noopener">
-            <img src="/receipts/{receipt.id}/image" alt="Uploaded receipt">
+            <img src="/receipts/{receipt.id}/image" alt="Photo of the receipt">
         </a>
+        <figcaption><span>Tap the photo to zoom</span><a href="/">Back to today</a></figcaption>
     </figure>
 
-    <div class="card">
-        <h1>Review <span class="badge {receipt.status.cssClass}">{receipt.status.label}</span></h1>
+    <div class="slip">
+        <div class="slip-head">
+            <h1 class="slip-title">Review</h1>
+            <span class="review-state {receipt.status.stateClass}">{receipt.status.label}</span>
+        </div>
+
         {#if duplicate}
-        <p class="alert" role="status">This image was already uploaded. Showing the existing receipt.</p>
+        <p class="notice notice-warn" role="status">This photo was already uploaded. This is the receipt it made.</p>
         {/if}
-        {#if receipt.pending}
-        <p class="muted">The model read the fields below. Check them against the photo and fix anything wrong.</p>
-        {#if !result.valid}
-        <p class="alert" role="alert">Some fields need fixing before this receipt can be confirmed.</p>
+
+        {#if receipt.reading}
+        <div class="reading-wait" role="status">
+            <div class="printhead" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p><strong>The model is reading this photo.</strong></p>
+            <p>About 15 seconds. This page fills in by itself; you can go back and take the next photo.</p>
+        </div>
+        {#else}
+
+        {#if receipt.modelFailed}
+        <p class="notice notice-error" role="alert"><strong>The model could not read this photo.</strong>Check that Ollama is running, or type the fields from the photo.</p>
+        {#else if receipt.pending}
+        {#if result.valid}
+        <p class="notice notice-ok" role="status"><strong>Every check passes.</strong>Compare the numbers with the photo, then confirm.</p>
+        {#else}
+        <p class="notice notice-error" role="alert"><strong>Some fields need fixing.</strong>The model read what is below; the highlighted fields failed a check.</p>
         {/if}
         {/if}
 
-        <form method="post" action="/receipts/{receipt.id}/confirm">
+        <form method="post" action="/receipts/{receipt.id}/confirm" id="confirm-form">
             <fieldset{#if !receipt.pending} disabled{/if}>
-            <div class="field{#if result.hasErrorIn('type')} invalid{/if}">
-                <label for="type">Type</label>
-                <select id="type" name="type">
-                    <option value="">Choose…</option>
-                    {#for t in types}
-                    <option value="{t}"{#if t.name == result.fields.type} selected{/if}>{t.label}</option>
-                    {/for}
-                </select>
-                {#if result.issuesFor('type')}
-                <ul class="issues">
-                    {#for issue in result.issuesFor('type')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
-                </ul>
-                {/if}
-            </div>
-            {#field name='amount' label='Amount' value=result.fields.amount result=result maxlength=30 hint='1234.56 or 1.234,56' /}
-            {#field name='date' label='Date' value=result.fields.date result=result maxlength=10 hint='yyyy-mm-dd' /}
-            {#field name='counterparty' label='Issuer / payer' hint='On a cheque, the account holder who wrote it' value=result.fields.counterparty result=result /}
-            {#field name='taxId' label='CNPJ' value=result.fields.taxId result=result maxlength=30 /}
-            {#field name='uniqueId' label='Unique ID' value=result.fields.uniqueId result=result maxlength=60 hint='NF-e/NFC-e access key, Pix ID, card authorization code or the cheque magnetic line (CMC-7)' /}
-            {#field name='time' label='Time' value=result.fields.time result=result maxlength=8 hint='hh:mm' /}
-            <div class="field{#if result.hasErrorIn('paymentMethod')} invalid{/if}">
-                <label for="paymentMethod">Paid with</label>
-                <select id="paymentMethod" name="paymentMethod">
-                    <option value="">Not shown</option>
-                    {#for m in methods}
-                    <option value="{m}"{#if m.name == result.fields.paymentMethod.or('').toUpperCase} selected{/if}>{m.label}</option>
-                    {/for}
-                </select>
-                {#if result.issuesFor('paymentMethod')}
-                <ul class="issues">
-                    {#for issue in result.issuesFor('paymentMethod')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
-                </ul>
-                {/if}
-            </div>
-            {#field name='installments' label='Installments' value=result.fields.installments result=result maxlength=3 hint='1 if paid at once' /}
-            <div class="field">
-                <label for="cardBrand">Card brand</label>
-                <select id="cardBrand" name="cardBrand">
-                    <option value="">Not shown / not a card</option>
-                    {#for b in brands}
-                    <option value="{b}"{#if b.name == result.fields.cardBrand.or('').toUpperCase} selected{/if}>{b.label}</option>
-                    {/for}
-                </select>
-                {#if result.issuesFor('cardBrand')}
-                <ul class="issues">
-                    {#for issue in result.issuesFor('cardBrand')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
-                </ul>
-                {/if}
-            </div>
-            <div class="field{#if result.hasErrorIn('direction')} invalid{/if}">
-                <label for="direction">Sale or expense</label>
-                <select id="direction" name="direction">
-                    <option value="">Choose…</option>
-                    {#for d in directions}
-                    <option value="{d}"{#if d == result.direction} selected{/if}>{d.label}</option>
-                    {/for}
-                </select>
-                {#if result.issuesFor('direction')}
-                <ul class="issues">
-                    {#for issue in result.issuesFor('direction')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
-                </ul>
-                {/if}
-            </div>
-            <div class="field">
-                <label for="category">Category</label>
-                <select id="category" name="category">
-                    {#for c in categories}
-                    <option value="{c}"{#if c == result.category} selected{/if}>{c.label}</option>
-                    {/for}
-                </select>
-                {#if result.issuesFor('category')}
-                <ul class="issues">
-                    {#for issue in result.issuesFor('category')}<li class="{issue.severity.cssClass}">{issue.message}</li>{/for}
-                </ul>
-                {/if}
-            </div>
+                <div class="group">
+                    <h2 class="group-title">What</h2>
+                    {#choice name='type' label='Type' result=result}
+                        <option value="">Choose…</option>
+                        {#for t in types}
+                        <option value="{t}"{#if t.name == result.fields.type} selected{/if}>{t.label}</option>
+                        {/for}
+                    {/choice}
+                    {#field name='amount' label='Amount (R$)' value=result.fields.amount result=result maxlength=30 num='decimal' hint='1234.56 or 1.234,56' /}
+                    <div class="pair">
+                        {#field name='date' label='Date' value=result.fields.date result=result maxlength=10 num='numeric' hint='yyyy-mm-dd' /}
+                        {#field name='time' label='Time' value=result.fields.time result=result maxlength=8 num='numeric' hint='hh:mm' /}
+                    </div>
+                </div>
+
+                <div class="group">
+                    <h2 class="group-title">Who</h2>
+                    {#field name='counterparty' label='Issuer / payer' hint='On a cheque, the account holder who wrote it' value=result.fields.counterparty result=result /}
+                    {#field name='taxId' label='CNPJ' value=result.fields.taxId result=result maxlength=30 num='text' /}
+                </div>
+
+                <div class="group">
+                    <h2 class="group-title">Proof</h2>
+                    {#field name='uniqueId' label='Unique ID' value=result.fields.uniqueId result=result maxlength=60 num='text' hint='NF-e/NFC-e access key, Pix ID, card authorization code or the cheque magnetic line (CMC-7)' /}
+                </div>
+
+                <div class="group">
+                    <h2 class="group-title">Payment</h2>
+                    {#choice name='paymentMethod' label='Paid with' result=result}
+                        <option value="">Not shown</option>
+                        {#for m in methods}
+                        <option value="{m}"{#if m.name == result.fields.paymentMethod.or('').toUpperCase} selected{/if}>{m.label}</option>
+                        {/for}
+                    {/choice}
+                    <div class="pair">
+                        {#field name='installments' label='Installments' value=result.fields.installments result=result maxlength=3 num='numeric' hint='1 if paid at once' /}
+                        {#choice name='cardBrand' label='Card brand' result=result}
+                            <option value="">None</option>
+                            {#for b in brands}
+                            <option value="{b}"{#if b.name == result.fields.cardBrand.or('').toUpperCase} selected{/if}>{b.label}</option>
+                            {/for}
+                        {/choice}
+                    </div>
+                </div>
+
+                <div class="group">
+                    <h2 class="group-title">Books</h2>
+                    <div class="pair">
+                        {#choice name='direction' label='Sale or expense' result=result}
+                            <option value="">Choose…</option>
+                            {#for d in directions}
+                            <option value="{d}"{#if d == result.direction} selected{/if}>{d.label}</option>
+                            {/for}
+                        {/choice}
+                        {#choice name='category' label='Category' result=result}
+                            {#for c in categories}
+                            <option value="{c}"{#if c == result.category} selected{/if}>{c.label}</option>
+                            {/for}
+                        {/choice}
+                    </div>
+                </div>
             </fieldset>
-            {#if receipt.pending}
-            <button type="submit">Confirm</button>
-            {/if}
         </form>
+
         {#if receipt.pending}
-        <form method="post" action="/receipts/{receipt.id}/reject">
-            <button type="submit" class="secondary">Reject</button>
-        </form>
+        <div class="actions">
+            <button type="submit" form="confirm-form">Confirm</button>
+            <form method="post" action="/receipts/{receipt.id}/reject">
+                <button type="submit" class="btn-quiet">Reject</button>
+            </form>
+        </div>
+        {/if}
         {/if}
     </div>
 </section>

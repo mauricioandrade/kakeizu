@@ -22,6 +22,11 @@ public interface ReceiptRepository {
 
     Optional<ReceiptRecord> findByImageSha256(String imageSha256);
 
+    /**
+     * Oldest first.
+     */
+    List<ReceiptRecord> findReading();
+
     Optional<ReceiptRecord> findConfirmedByUniqueId(ReceiptType type, String uniqueId);
 
     /**

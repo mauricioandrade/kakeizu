@@ -43,6 +43,11 @@ class InMemoryReceiptRepository implements ReceiptRepository {
     }
 
     @Override
+    public List<ReceiptRecord> findReading() {
+        return receipts.values().stream().filter(r -> r.status() == ReceiptStatus.READING).toList();
+    }
+
+    @Override
     public Optional<ReceiptRecord> findConfirmedByUniqueId(ReceiptType type, String uniqueId) {
         return confirmed().filter(r -> {
             var receipt = r.confirmedReceipt().orElseThrow();

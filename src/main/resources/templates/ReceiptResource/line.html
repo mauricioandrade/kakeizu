@@ -1,0 +1,6 @@
+{! Polled by a line still reading: once the model is done, the line comes back printed !}
+{#if receipt.reading}
+{#slipline receipt=receipt number=number /}
+{#else}
+{#slipline receipt=receipt number=number printed=true /}
+{/if}

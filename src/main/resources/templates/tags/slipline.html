@@ -1,0 +1,10 @@
+{! One line of a slip. Params: receipt, number ("07" or ""), printed (true when it just finished reading) !}
+<li class="line {receipt.status.stateClass}{#if printed??} printed{/if}"
+    {#if receipt.reading}hx-get="/receipts/{receipt.id}/line?n={number}" hx-trigger="every 2s" hx-swap="outerHTML"{/if}>
+    <a href="/receipts/{receipt.id}/review">
+        <span class="no">{#if number}#{number}{/if}</span>
+        <span class="who"><span class="name">{#if receipt.reading}Reading the photo{#else if receipt.modelFailed}Not read: type it from the photo{#else}{receipt.fields.counterparty ?: 'No name on the receipt'}{/if}</span><span class="leader" aria-hidden="true"></span></span>
+        <span class="state">{receipt.status.label}{#if receipt.reading}…{/if}</span>
+        <span class="amount">{#if receipt.reading}···{#else}<span class="cur">R$</span>{receipt.amountPlain}{/if}</span>
+    </a>
+</li>

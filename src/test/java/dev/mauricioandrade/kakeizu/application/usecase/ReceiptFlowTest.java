@@ -53,13 +53,14 @@ class ReceiptFlowTest {
     }
 
     @Test
-    void uploadReviewConfirmSummarize() {
+    void uploadReviewConfirmSummarize() throws InterruptedException {
         when(reader.read(any(), anyString())).thenReturn(Fixtures.reading(AS_READ));
         byte[] image = UUID.randomUUID().toString().getBytes();
 
-        var uploaded = assertInstanceOf(UploadResult.Extracted.class, extract.extract(image, "image/png"));
+        var uploaded = assertInstanceOf(UploadResult.Queued.class, extract.extract(image, "image/png"));
         var id = uploaded.receipt().id();
         assertInstanceOf(UploadResult.AlreadyUploaded.class, extract.extract(image, "image/png"));
+        awaitRead(id);
 
         assertFalse(review.review(id).result().isValid());
 
@@ -71,5 +72,13 @@ class ReceiptFlowTest {
         var day = summary.summarize(DAY);
         assertEquals(1, day.count());
         assertEquals(Map.of(ReceiptType.PIX, new Money("80")), day.byType());
+    }
+
+    // The model reads in the background, on the real worker thread
+    private void awaitRead(UUID id) throws InterruptedException {
+        for (int i = 0; i < 100 && review.review(id).receipt().status() == ReceiptStatus.READING; i++) {
+            Thread.sleep(50);
+        }
+        assertEquals(ReceiptStatus.PENDING_REVIEW, review.review(id).receipt().status());
     }
 }

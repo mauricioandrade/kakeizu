@@ -65,6 +65,12 @@ public class PanacheReceiptRepository implements ReceiptRepository {
     }
 
     @Override
+    public List<ReceiptRecord> findReading() {
+        return ReceiptEntity.<ReceiptEntity>list("status", Sort.ascending("createdAt"), ReceiptStatus.READING)
+                .stream().map(this::toDomain).toList();
+    }
+
+    @Override
     public Optional<ReceiptRecord> findConfirmedByUniqueId(ReceiptType type, String uniqueId) {
         return ReceiptEntity.<ReceiptEntity>find("status = ?1 and type = ?2 and uniqueId = ?3",
                         ReceiptStatus.CONFIRMED, type, uniqueId)

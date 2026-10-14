@@ -112,7 +112,7 @@ class BatchExtractReceiptServiceTest {
     }
 
     private static UploadResult extracted() {
-        return new UploadResult.Extracted(ReceiptRecord.pending(Fixtures.CARD, Category.OTHER, "a".repeat(64),
+        return new UploadResult.Queued(ReceiptRecord.pending(Fixtures.CARD, Category.OTHER, "a".repeat(64),
                 "image/jpeg", "{}", Fixtures.NOW.instant()));
     }
 

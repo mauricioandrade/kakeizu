@@ -4,7 +4,10 @@ public sealed interface UploadResult {
 
     ReceiptRecord receipt();
 
-    record Extracted(ReceiptRecord receipt) implements UploadResult {
+    /**
+     * The photo is saved and waits for the model (status READING).
+     */
+    record Queued(ReceiptRecord receipt) implements UploadResult {
     }
 
     /**

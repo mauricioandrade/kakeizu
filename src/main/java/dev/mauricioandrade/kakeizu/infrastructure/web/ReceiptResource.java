@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.RestPath;
 import org.jboss.resteasy.reactive.RestQuery;
@@ -69,16 +70,21 @@ public class ReceiptResource {
     record batch(List<BatchRow> rows) implements TemplateInstance {
     }
 
-    // One line of the batch page: a link to the review, or why the photo was not read
-    record BatchRow(String fileName, UUID receiptId, boolean duplicate, String error) {
+    // One line of today's slip; a line still reading polls this until the model is done
+    record line(ReceiptRecord receipt, String number) implements TemplateInstance {
+    }
 
-        static BatchRow of(BatchItem item) {
+    // One photo of the batch: its receipt (new or already uploaded), or why it was not saved
+    record BatchRow(String fileName, String number, ReceiptRecord receipt, boolean duplicate, String error) {
+
+        static BatchRow of(int position, BatchItem item) {
+            String number = "%02d".formatted(position);
             return switch (item) {
-                case BatchItem.Done(var name, UploadResult.Extracted(var receipt)) ->
-                        new BatchRow(name, receipt.id(), false, null);
+                case BatchItem.Done(var name, UploadResult.Queued(var receipt)) ->
+                        new BatchRow(name, number, receipt, false, null);
                 case BatchItem.Done(var name, UploadResult.AlreadyUploaded(var receipt)) ->
-                        new BatchRow(name, receipt.id(), true, null);
-                case BatchItem.Failed(var name, var reason) -> new BatchRow(name, null, false, reason);
+                        new BatchRow(name, number, receipt, true, null);
+                case BatchItem.Failed(var name, var reason) -> new BatchRow(name, number, null, false, reason);
             };
         }
     }
@@ -114,7 +120,8 @@ public class ReceiptResource {
         var result = Correlation.with(Correlation.newId(), () -> extractReceipt.extract(image.content(), image.contentType()));
 
         URI next = switch (result) {
-            case UploadResult.Extracted(var receipt) -> reviewUri(receipt.id(), false);
+            // Back to today's list at once: the model reads in the background, and the next photo can go in
+            case UploadResult.Queued(var receipt) -> URI.create("/?uploaded=" + receipt.id());
             case UploadResult.AlreadyUploaded(var receipt) -> reviewUri(receipt.id(), true);
         };
         return Response.seeOther(next).build();
@@ -135,7 +142,8 @@ public class ReceiptResource {
         for (var upload : uploads) {
             images.add(toImage(upload));
         }
-        return new batch(batchExtractReceipt.extractAll(images).stream().map(BatchRow::of).toList());
+        var items = batchExtractReceipt.extractAll(images);
+        return new batch(IntStream.range(0, items.size()).mapToObj(i -> BatchRow.of(i + 1, items.get(i))).toList());
     }
 
     // The type comes from the magic bytes, never from the Content-Type the browser sent
@@ -147,6 +155,14 @@ public class ReceiptResource {
         var imageType = ImageType.detect(content)
                 .orElseThrow(() -> new InvalidInputException("Only JPG and PNG images are accepted."));
         return new UploadedImage(upload.fileName(), content, imageType.mediaType());
+    }
+
+    @GET
+    @Path("{id}/line")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance line(@RestPath UUID id, @RestQuery("n") String number) {
+        String safeNumber = number != null && number.matches("\\d{1,3}") ? number : "";
+        return new line(reviewReceipt.review(id).receipt(), safeNumber);
     }
 
     @GET

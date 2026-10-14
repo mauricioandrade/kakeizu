@@ -5,10 +5,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.AdditionalMatchers.aryEq;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -39,6 +39,8 @@ import org.junit.jupiter.api.Test;
 class ReceiptWebFlowTest {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    // What the review page says while the model is still reading
+    static final String READING_MARK = "is reading this photo";
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
 
     @InjectMock
@@ -69,19 +71,17 @@ class ReceiptWebFlowTest {
     }
 
     @Test
-    void batchReadsEveryPhotoAndListsTheOneThatFailed() {
+    void batchQueuesEveryPhotoAndMarksTheOneAlreadyUploaded() {
         modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
-        byte[] unreadable = uniquePng();
-        when(reader.read(aryEq(unreadable), any())).thenThrow(new ReceiptReadingException("model down", null));
+        byte[] seenBefore = uniquePng();
+        upload(seenBefore);
 
         user().multiPart("images", "first.png", uniquePng(), "image/png")
-                .multiPart("images", "blurry.png", unreadable, "image/png")
+                .multiPart("images", "again.png", seenBefore, "image/png")
                 .when().post("/receipts/batch")
                 .then().statusCode(200)
-                .body(containsString("first.png"))
-                .body(containsString("/review\""))
-                .body(containsString("blurry.png"))
-                .body(containsString("Try it again on its own"));
+                .body(containsString("Reading"))
+                .body(containsString("again.png was already uploaded"));
     }
 
     @Test
@@ -186,9 +186,12 @@ class ReceiptWebFlowTest {
         byte[] image = uniquePng();
 
         String first = upload(image);
-        String second = upload(image);
+        String second = user().multiPart("image", "receipt.png", image, "image/png")
+                .when().post("/receipts")
+                .then().statusCode(303)
+                .extract().header("Location");
 
-        assertEquals(first + "?duplicate=true", second);
+        assertTrue(second.endsWith(first + "?duplicate=true"), second);
         verify(reader, times(1)).read(any(), any());
         user().when().get(second).then().statusCode(200).body(containsString("already uploaded"));
     }
@@ -230,13 +233,13 @@ class ReceiptWebFlowTest {
     }
 
     @Test
-    void modelOutageShowsAGenericMessage() {
+    void modelOutageLeavesThePhotoToTypeWithAGenericMessage() {
         when(reader.read(any(), any())).thenThrow(new ReceiptReadingException("The model could not read the receipt",
                 new ConnectException("Connection refused: localhost/127.0.0.1:11434")));
 
-        user().multiPart("image", "receipt.png", uniquePng(), "image/png")
-                .when().post("/receipts")
-                .then().statusCode(503)
+        // The upload still goes through: the photo waits on review, for the person to type it
+        user().when().get(upload(uniquePng()))
+                .then().statusCode(200)
                 .body(containsString("Check that Ollama is running"))
                 .body(not(containsString("11434")));
     }
@@ -258,15 +261,16 @@ class ReceiptWebFlowTest {
         byte[] image = uniquePng();
 
         // The client claims JPEG; the bytes say PNG
-        String review = user().multiPart("image", "receipt.jpg", image, "image/jpeg")
+        String location = user().multiPart("image", "receipt.jpg", image, "image/jpeg")
                 .when().post("/receipts")
                 .then().statusCode(303).extract().header("Location");
+        String id = location.substring(location.indexOf('=') + 1);
 
-        user().when().get(review.replace("/review", "/image"))
+        user().when().get("/receipts/" + id + "/image")
                 .then().statusCode(200)
                 .contentType(startsWith("image/png"))
                 .header("X-Content-Type-Options", "nosniff");
-        verify(reader).read(any(), eq("image/png"));
+        verify(reader, timeout(5000)).read(any(), eq("image/png"));
     }
 
     @Test
@@ -287,11 +291,25 @@ class ReceiptWebFlowTest {
         return given().redirects().follow(false).cookie(TestLogin.COOKIE, session);
     }
 
+    // Uploads, waits for the background reading, and returns the review path
     private String upload(byte[] image) {
-        return user().multiPart("image", "receipt.png", image, "image/png")
+        String location = user().multiPart("image", "receipt.png", image, "image/png")
                 .when().post("/receipts")
-                .then().statusCode(303)
+                .then().statusCode(303).header("Location", containsString("/?uploaded="))
                 .extract().header("Location");
+        String review = "/receipts/" + location.substring(location.indexOf('=') + 1) + "/review";
+        for (int i = 0; i < 100 && user().get(review).asString().contains(READING_MARK); i++) {
+            sleep();
+        }
+        return review;
+    }
+
+    private static void sleep() {
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private void modelReads(ReceiptFields fields) {

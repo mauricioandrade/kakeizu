@@ -33,6 +33,42 @@ public record ReceiptRecord(
                 imageSha256, imageContentType, rawModelOutput, createdAt);
     }
 
+    private static final ReceiptFields NOTHING_READ = new ReceiptFields(null, null, null, null, null, null, null,
+            null, null, null, null, null);
+
+    /**
+     * The photo is saved and waits for the model: nothing is read yet.
+     */
+    public static ReceiptRecord reading(String imageSha256, String imageContentType, Instant createdAt) {
+        return new ReceiptRecord(UUID.randomUUID(), ReceiptStatus.READING, NOTHING_READ, Category.OTHER,
+                Optional.empty(), imageSha256, imageContentType, null, createdAt);
+    }
+
+    /**
+     * What the model read goes to review, valid or not.
+     */
+    public ReceiptRecord read(ModelReading reading, Category category) {
+        requireStatus(ReceiptStatus.READING);
+        return new ReceiptRecord(id, ReceiptStatus.PENDING_REVIEW, reading.fields(), category, Optional.empty(),
+                imageSha256, imageContentType, reading.rawOutput(), createdAt);
+    }
+
+    /**
+     * The model could not read the photo: it goes to review empty, and the person types it from the photo.
+     */
+    public ReceiptRecord readingFailed() {
+        requireStatus(ReceiptStatus.READING);
+        return new ReceiptRecord(id, ReceiptStatus.PENDING_REVIEW, NOTHING_READ, Category.OTHER, Optional.empty(),
+                imageSha256, imageContentType, null, createdAt);
+    }
+
+    /**
+     * Pending, but the model gave nothing to review.
+     */
+    public boolean modelFailed() {
+        return status == ReceiptStatus.PENDING_REVIEW && rawModelOutput == null;
+    }
+
     /**
      * @param result a valid extraction of the corrected fields
      */
@@ -58,7 +94,11 @@ public record ReceiptRecord(
     }
 
     private void requirePending() {
-        if (status != ReceiptStatus.PENDING_REVIEW) {
+        requireStatus(ReceiptStatus.PENDING_REVIEW);
+    }
+
+    private void requireStatus(ReceiptStatus expected) {
+        if (status != expected) {
             throw new ReceiptAlreadyReviewedException();
         }
     }

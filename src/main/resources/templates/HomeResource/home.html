@@ -1,47 +1,66 @@
 {#include base}
-<section class="card">
-    <h1>New receipt</h1>
-    {! Plain form that htmx upgrades: the button is disabled and a message shows while the model reads !}
-    <form method="post" action="/receipts" enctype="multipart/form-data"
-          hx-boost="true" hx-indicator="#reading" hx-disabled-elt="find button">
-        <div class="field">
-            <label for="image">Photo of the receipt (JPG or PNG)</label>
-            <input id="image" name="image" type="file" accept="image/jpeg,image/png" capture="environment" required>
+{#page}today{/page}
+{#currentToday} aria-current="page"{/currentToday}
+<section class="slip" aria-labelledby="today-title">
+    <div class="slip-head">
+        <div>
+            <h1 class="slip-title" id="today-title">Today</h1>
+            <span class="slip-meta">{today}</span>
         </div>
-        <button type="submit">Read receipt</button>
-        <p id="reading" class="htmx-indicator muted" role="status">Reading the receipt… the first one of the day can take a minute.</p>
-    </form>
-    <details class="batch">
-        <summary>Several photos at once</summary>
-        <form method="post" action="/receipts/batch" enctype="multipart/form-data"
-              hx-boost="true" hx-indicator="#reading-batch" hx-disabled-elt="find button">
-            <div class="field">
-                <label for="images">Up to 5 photos (JPG or PNG)</label>
-                <input id="images" name="images" type="file" accept="image/jpeg,image/png" multiple required>
-            </div>
-            <button type="submit">Read all</button>
-            <p id="reading-batch" class="htmx-indicator muted" role="status">Reading the photos one after the other… about 15 seconds each.</p>
-        </form>
-    </details>
+        <div class="day-total">
+            <span class="num">{receipts.confirmedTotal.brl}</span>
+            <small>confirmed</small>
+        </div>
+    </div>
+    {#if receipts}
+    <p class="tally">
+        {#let review=receipts.countIn('PENDING_REVIEW') reading=receipts.countIn('READING') done=receipts.countIn('CONFIRMED')}
+        {#if review > 0}<span class="is-review">{review} to review</span>{/if}
+        {#if reading > 0}<span class="is-reading">{reading} reading</span>{/if}
+        <span class="is-done">{done} confirmed</span>
+        {/let}
+    </p>
+    <ol class="lines" reversed>
+        {#for receipt in receipts}
+        {#slipline receipt=receipt number=receipts.dayNumber(receipt_index) /}
+        {/for}
+    </ol>
+    <p class="slip-foot"><a href="/summary?date={today}">Today's summary</a></p>
+    {#else}
+    <div class="empty">
+        <strong>No receipts yet today.</strong>
+        Take a photo of a receipt below. While the model reads it, you can take the next one.
+    </div>
+    {/if}
 </section>
 
-<section class="card">
-    <h2>Today · {today}</h2>
-    {#if receipts}
-    <ul class="receipts">
-        {#for receipt in receipts}
-        <li>
-            <a href="/receipts/{receipt.id}/review">
-                <span class="who">{receipt.fields.counterparty ?: 'Unknown'}</span>
-                <span class="amount">{receipt.amountLabel}</span>
-                <span class="badge {receipt.status.cssClass}">{receipt.status.label}</span>
-            </a>
-        </li>
-        {/for}
-    </ul>
-    {#else}
-    <p class="muted">No receipts uploaded today.</p>
-    {/if}
-    <p><a href="/summary?date={today}">See today's summary</a></p>
-</section>
+<div class="dock">
+    <div class="dock-inner">
+        {! A photo goes up as soon as it is taken: the list comes back at once and the model reads in the background !}
+        <form method="post" action="/receipts" enctype="multipart/form-data"
+              hx-post="/receipts" hx-encoding="multipart/form-data" hx-trigger="change"
+              hx-target="body" hx-push-url="/" hx-indicator="#saving" hx-disabled-elt="find input">
+            <label class="picker">
+                <span class="btn btn-wide">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                    Photo of a receipt
+                </span>
+                <input name="image" type="file" accept="image/jpeg,image/png" capture="environment" required
+                       aria-label="Photo of a receipt (JPG or PNG)">
+            </label>
+            <noscript><button type="submit">Send</button></noscript>
+        </form>
+        <form method="post" action="/receipts/batch" enctype="multipart/form-data"
+              hx-post="/receipts/batch" hx-encoding="multipart/form-data" hx-trigger="change"
+              hx-target="body" hx-push-url="false" hx-indicator="#saving" hx-disabled-elt="find input">
+            <label class="picker">
+                <span class="btn btn-quiet">Up to 5</span>
+                <input name="images" type="file" accept="image/jpeg,image/png" multiple required
+                       aria-label="Several photos at once, up to 5 (JPG or PNG)">
+            </label>
+            <noscript><button type="submit" class="btn-quiet">Send</button></noscript>
+        </form>
+        <p class="hint" role="status"><span id="saving" class="htmx-indicator">Saving the photo…</span></p>
+    </div>
+</div>
 {/include}

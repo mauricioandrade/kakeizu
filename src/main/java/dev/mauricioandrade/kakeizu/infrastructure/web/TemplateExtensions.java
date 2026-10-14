@@ -7,6 +7,7 @@ import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
+import dev.mauricioandrade.kakeizu.domain.model.Receipt;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
@@ -49,6 +50,29 @@ public class TemplateExtensions {
         }
     }
 
+    // {receipt.amountPlain} -> 1.234,56 for the slip's amount column, the currency set apart
+    static String amountPlain(ReceiptRecord receipt) {
+        String raw = receipt.fields().amount();
+        if (raw == null || raw.isBlank()) {
+            return "—";
+        }
+        try {
+            return plain(new Money(raw));
+        } catch (InvalidValueException _) {
+            return raw;
+        }
+    }
+
+    // {status.stateClass} -> the slip line's rule and ink
+    static String stateClass(ReceiptStatus status) {
+        return switch (status) {
+            case READING -> "is-reading";
+            case PENDING_REVIEW -> "is-review";
+            case CONFIRMED -> "is-done";
+            case REJECTED -> "is-struck";
+        };
+    }
+
     static String label(ReceiptType type) {
         return switch (type) {
             case NFE -> "NF-e";
@@ -72,6 +96,7 @@ public class TemplateExtensions {
 
     static String label(ReceiptStatus status) {
         return switch (status) {
+            case READING -> "Reading";
             case PENDING_REVIEW -> "To review";
             case CONFIRMED -> "Confirmed";
             case REJECTED -> "Rejected";
@@ -131,6 +156,41 @@ public class TemplateExtensions {
 
     static boolean pending(ReceiptRecord receipt) {
         return receipt.status() == ReceiptStatus.PENDING_REVIEW;
+    }
+
+    static boolean reading(ReceiptRecord receipt) {
+        return receipt.status() == ReceiptStatus.READING;
+    }
+
+    // {receipts.countIn('PENDING_REVIEW')}
+    static long countIn(List<ReceiptRecord> receipts, String status) {
+        var wanted = ReceiptStatus.valueOf(status);
+        return receipts.stream().filter(r -> r.status() == wanted).count();
+    }
+
+    // {receipts.confirmedTotal.brl}: what the confirmed receipts in the list add up to
+    static Money confirmedTotal(List<ReceiptRecord> receipts) {
+        return receipts.stream()
+                .flatMap(r -> r.confirmedReceipt().stream())
+                .map(Receipt::amount)
+                .reduce(new Money("0"), Money::plus);
+    }
+
+    // Number of the day, oldest first: {receipts.dayNumber(receipt_index)} on a newest-first list -> "07"
+    static String dayNumber(List<ReceiptRecord> receipts, int index) {
+        return twoDigits(receipts.size() - index);
+    }
+
+    static String twoDigits(int number) {
+        return String.format(Locale.ROOT, "%02d", number);
+    }
+
+    // Amount without the currency sign, for the slip's amount column: 1.234,56
+    static String plain(Money money) {
+        var format = NumberFormat.getNumberInstance(BRAZIL);
+        format.setMinimumFractionDigits(2);
+        format.setMaximumFractionDigits(2);
+        return format.format(money.value());
     }
 
     // {result.issuesFor('amount')}

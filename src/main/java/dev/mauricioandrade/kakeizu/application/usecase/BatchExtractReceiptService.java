@@ -19,9 +19,9 @@ import org.jboss.logging.Logger;
  * The only class that uses a preview API (structured concurrency, JEP 505): the build and the JVM need
  * {@code --enable-preview}.
  * <p>
- * With one GPU the model still reads one photo at a time (the reader's semaphore), so this is not about
- * speed. It is about shape: every photo gets an answer, one bad photo does not stop the others, and no
- * thread outlives the request.
+ * Each fork hashes, deduplicates, stores and queues one photo; the model reads them afterwards, in the
+ * background. The scope is about shape: every photo gets an answer, one bad photo does not stop the
+ * others, and no thread outlives the request.
  */
 @ApplicationScoped
 public class BatchExtractReceiptService implements BatchExtractReceiptUseCase {
