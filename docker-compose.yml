@@ -1,15 +1,19 @@
 # Postgres for running outside Quarkus dev mode (dev/test use Dev Services).
+# Put the two passwords in .env (gitignored): POSTGRES_PASSWORD (superuser, admin only) and DB_PASSWORD (the app).
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: kakeizu
-      POSTGRES_USER: kakeizu
-      POSTGRES_PASSWORD: kakeizu
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      DB_USER: ${DB_USER:-kakeizu}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"   # same machine only: the app is the only client
     volumes:
       - kakeizu-data:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
 
 volumes:
   kakeizu-data:
