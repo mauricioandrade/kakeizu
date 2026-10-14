@@ -68,6 +68,17 @@ class ReceiptWebFlowTest {
     }
 
     @Test
+    void todaysListShowsAmountsInReais() {
+        modelReads(new ReceiptFields("PIX", "7654.3", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
+        upload(uniquePng());
+
+        user().when().get("/")
+                .then().statusCode(200)
+                .body(containsString("7.654,30"))
+                .body(not(containsString("7654.3")));
+    }
+
+    @Test
     void confirmedReceiptShowsUpInTheSummaryOfItsDay() {
         modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId + "X", "OTHER", null, null, null, null, null));
         String review = upload(uniquePng());

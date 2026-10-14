@@ -21,7 +21,7 @@
         <li>
             <a href="/receipts/{receipt.id}/review">
                 <span class="who">{receipt.fields.counterparty ?: 'Unknown'}</span>
-                <span class="amount">{receipt.fields.amount ?: '—'}</span>
+                <span class="amount">{receipt.amountLabel}</span>
                 <span class="badge {receipt.status.cssClass}">{receipt.status.label}</span>
             </a>
         </li>

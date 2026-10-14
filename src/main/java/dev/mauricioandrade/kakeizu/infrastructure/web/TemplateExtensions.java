@@ -1,5 +1,6 @@
 package dev.mauricioandrade.kakeizu.infrastructure.web;
 
+import dev.mauricioandrade.kakeizu.domain.exception.InvalidValueException;
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
@@ -33,6 +34,19 @@ public class TemplateExtensions {
     // {money.brl} -> R$ 1.234,56
     static String brl(Money money) {
         return NumberFormat.getCurrencyInstance(BRAZIL).format(money.value());
+    }
+
+    // {receipt.amountLabel} -> R$ 1.234,56 when the amount parses, else as typed (a pending receipt may be wrong)
+    static String amountLabel(ReceiptRecord receipt) {
+        String raw = receipt.fields().amount();
+        if (raw == null || raw.isBlank()) {
+            return "—";
+        }
+        try {
+            return brl(new Money(raw));
+        } catch (InvalidValueException _) {
+            return raw;
+        }
     }
 
     static String label(ReceiptType type) {
