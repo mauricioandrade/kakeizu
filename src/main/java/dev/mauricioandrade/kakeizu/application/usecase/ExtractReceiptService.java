@@ -1,5 +1,6 @@
 package dev.mauricioandrade.kakeizu.application.usecase;
 
+import dev.mauricioandrade.kakeizu.application.logging.Correlation;
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
@@ -9,6 +10,7 @@ import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptReader;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptRepository;
 import dev.mauricioandrade.kakeizu.domain.service.ExtractionMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.control.ActivateRequestContext;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -17,6 +19,7 @@ import org.jboss.logging.Logger;
 
 /**
  * Not transactional on purpose: the model call can take a minute and must not hold a database connection.
+ * The request context is activated instead, so the repository also works on a batch's own virtual threads.
  */
 @ApplicationScoped
 public class ExtractReceiptService implements ExtractReceiptUseCase {
@@ -39,11 +42,12 @@ public class ExtractReceiptService implements ExtractReceiptUseCase {
     }
 
     @Override
+    @ActivateRequestContext
     public UploadResult extract(byte[] image, String contentType) {
         String sha256 = sha256(image);
         var existing = repository.findByImageSha256(sha256);
         if (existing.isPresent()) {
-            LOG.infof("Duplicate image, receipt %s", existing.get().id());
+            LOG.infof("[%s] Duplicate image, receipt %s", Correlation.id(), existing.get().id());
             return new UploadResult.AlreadyUploaded(existing.get());
         }
 
@@ -60,7 +64,7 @@ public class ExtractReceiptService implements ExtractReceiptUseCase {
                     .<UploadResult>map(UploadResult.AlreadyUploaded::new)
                     .orElseThrow(() -> e);
         }
-        LOG.infof("Receipt %s extracted, pending review", receipt.id());
+        LOG.infof("[%s] Receipt %s extracted, pending review", Correlation.id(), receipt.id());
         return new UploadResult.Extracted(receipt);
     }
 

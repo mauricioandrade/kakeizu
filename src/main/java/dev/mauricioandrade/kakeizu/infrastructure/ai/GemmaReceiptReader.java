@@ -3,6 +3,7 @@ package dev.mauricioandrade.kakeizu.infrastructure.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.image.Image;
+import dev.mauricioandrade.kakeizu.application.logging.Correlation;
 import dev.mauricioandrade.kakeizu.domain.exception.ReceiptReadingException;
 import dev.mauricioandrade.kakeizu.domain.model.ModelReading;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
@@ -50,7 +51,7 @@ public class GemmaReceiptReader implements ReceiptReader {
         } finally {
             modelSlots.release();
         }
-        LOG.infof("Model read the receipt in %d ms", (System.nanoTime() - start) / 1_000_000);
+        LOG.infof("[%s] Model read the receipt in %d ms", Correlation.id(), (System.nanoTime() - start) / 1_000_000);
         return new ModelReading(toFields(extracted), toJson(extracted));
     }
 
