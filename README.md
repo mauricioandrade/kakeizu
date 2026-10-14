@@ -136,6 +136,13 @@ export KAKEIZU_TLS_CERT=.certs/kakeizu.pem KAKEIZU_TLS_KEY=.certs/kakeizu-key.pe
 The phone shows a warning the first time; accept it once. (For no warning at all, use
 [mkcert](https://github.com/FiloSottile/mkcert) and install its CA on the phone.)
 
+### Health check
+
+`http://localhost:9000/q/health/ready` reports whether the database answers and whether Ollama is up with
+the configured model pulled (it only lists the models, so polling it costs no GPU time). It is on a
+separate port bound to the machine itself: a local monitor can poll it without logging in, and the shop
+Wi-Fi cannot reach it.
+
 ### Backups
 
 `scripts/backup.sh` writes a `pg_dump` of the database and a copy of the receipt photos to

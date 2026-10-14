@@ -59,6 +59,7 @@ Autenticação, multiusuário, integração com SEFAZ, exportação contábil, a
 | Web | `quarkus-rest` + `quarkus-rest-qute` + htmx (via `<script>` pinado em versão exata) |
 | Validação | `quarkus-hibernate-validator` |
 | Segurança | `quarkus-security` (núcleo, para o form login). Usuário único `admin`, senha com hash PBKDF2 do próprio JDK |
+| Saúde | `quarkus-smallrye-health` (aprovada na revisão final): banco + Ollama |
 | Testes | `quarkus-junit5`, `rest-assured`, `quarkus-junit5-mockito` |
 
 **Sem Lombok. Sem Redis** (não há requisito de cache neste projeto).
@@ -302,7 +303,7 @@ Triado para a realidade do projeto: app local, um usuário, sem contas. "Fase" i
 | Menor privilégio | Sim | 4 / final | Usuário do banco da aplicação sem superuser; container não-root; Ollama não exposto além do host; diretório de imagens com permissão restrita |
 | Dependências atualizadas | Sim | final | Dependabot no GitHub; `./mvnw quarkus:update`; htmx pinado com hash SRI |
 | Backups automáticos | Sim | final | `pg_dump` agendado + cópia do diretório de imagens; documentar no README |
-| Monitoramento / alertas | Parcial | final | Health check de banco e Ollama (`quarkus-smallrye-health`, dependência nova: perguntar); alertas externos fora do escopo local |
+| Monitoramento / alertas | Parcial | final ✅ | Health check de banco e Ollama (`quarkus-smallrye-health`, aprovada) em `localhost:9000/q/health/ready`, interface de gerenciamento só na máquina; alertas externos fora do escopo local |
 | Controle de acesso | Sim | 4 ✅ | Tudo exige login, exceto `/login`; usuário único `admin` (sem multiusuário, seção 1) |
 | Expiração de sessão | Sim | 4 ✅ | 30 min de inatividade; cookie `HttpOnly` + `SameSite=Strict`, criptografado com `KAKEIZU_SESSION_KEY` |
 | MFA | Não | — | Usuário único, local; a senha + bloqueio por tentativas cobrem o risco de rede local |
