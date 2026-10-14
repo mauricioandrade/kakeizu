@@ -54,7 +54,7 @@ the domain checks every digit it can, and a person confirms. Nothing is confirme
 <tr>
 <td align="center">📱<br><b>Photo</b><br><sub>from the phone</sub></td>
 <td align="center">➜</td>
-<td align="center">🤖<br><b>Gemma</b><br><sub>reads the fields,<br>locally on Ollama</sub></td>
+<td align="center">🤖<br><b>Gemma</b><br><sub>reads the fields locally,<br>in the background</sub></td>
 <td align="center">➜</td>
 <td align="center">🧮<br><b>Domain</b><br><sub>check digits,<br>formats, dates</sub></td>
 <td align="center">➜</td>
@@ -78,20 +78,28 @@ the domain checks every digit it can, and a person confirms. Nothing is confirme
 
 The model's answer and the person's corrections go through **the same** validation.
 
+### ⏱️ No waiting for the model
+
+A reading takes ~15 s on a consumer GPU, nearly all of it the model's own reasoning (the image itself is
+processed in under a second, and turning the reasoning off costs accuracy). So nobody waits for it: the
+upload saves the photo and returns at once, and a background worker reads it while the owner takes the
+next photo. The line on today's list updates itself when the reading is done. If the model fails, the
+receipt still goes to review, empty, to be typed from the photo; readings cut by a restart start again.
+
 ### 🗂️ Several photos at once
 
-Up to 5 photos can go in one upload. Each one is read on its own virtual thread inside a
-[structured task scope](https://openjdk.org/jeps/505): every photo gets an answer, a photo the model
-cannot read does not stop the others, and no thread outlives the request. With one GPU the model still
-reads one photo at a time, so this is about shape, not speed.
+Up to 5 photos can go in one upload. Each one is saved and queued on its own virtual thread inside a
+[structured task scope](https://openjdk.org/jeps/505): every photo gets an answer, a photo that fails
+does not stop the others, and no thread outlives the request.
 
 Every log line of an upload carries a correlation id held in a
-[scoped value](https://openjdk.org/jeps/506), which the forked threads inherit:
+[scoped value](https://openjdk.org/jeps/506). Forked threads inherit it; the background reader gets it
+handed over explicitly, since a scoped value does not cross into an executor on its own:
 
 ```
-(executor-thread-1)  [e618ffe0] Batch of 2 photos
-(batch-e618ffe0-1)   [e618ffe0/1] Model read the receipt in 11512 ms
-(batch-e618ffe0-2)   [e618ffe0/2] Model read the receipt in 10985 ms
+(executor-thread-3) [2774b991] Receipt 2375400d-… uploaded, queued for reading
+(reader-1)          [2774b991] Model read the receipt in 12177 ms
+(reader-1)          [2774b991] Receipt 2375400d-… read, pending review
 ```
 
 ## 📸 Screenshots
@@ -102,8 +110,13 @@ Every log line of an upload carries a correlation id held in a
 
 <img src="docs/gifs/wrong-amount.gif" alt="Joey from Friends, disappointed" width="160" align="right">
 
+Every screen is set like the thermal slips it reads: numbered lines, a dotted leader to each amount, the
+state drawn by the rule under the line (dashed while the model reads, orange to review, double green once
+confirmed). The photo goes up and the list comes back at once; the line prints itself in when the model
+is done.
+
 On review, the template NFC-e has no CNPJ and a zeroed access key, so it cannot be confirmed as read.
-Look at the amount too: the photo says **146,46**, the model read **46,46**. A well-formed wrong number has
+Look at the amount too: the photo says **146,46**, the model read **4,00**. A well-formed wrong number has
 no check digit, so the person is the one who catches it.
 
 <br clear="right">
@@ -116,7 +129,7 @@ no check digit, so the person is the one who catches it.
 | ⚡ Framework | Quarkus 3.40, Maven |
 | 🤖 AI | LangChain4j + Ollama, `gemma4:e4b` by default (any Ollama vision model works) |
 | 🐘 Database | PostgreSQL 16 + Flyway |
-| 🖥️ Web | Qute templates + htmx, no frontend build |
+| 🖥️ Web | Qute templates + htmx, no frontend build; Atkinson Hyperlegible (self-hosted) |
 | 🔐 Security | form login (single `admin`, PBKDF2), HTTPS on the network, strict CSP |
 
 ## 🚀 Running
@@ -404,8 +417,8 @@ with the current prompt:
 
 <br clear="right">
 
-⏱️ Readings take ~15 s warm (median, 12–19 s) on a consumer GPU; the model is loaded in the background as
-soon as the upload page opens.
+⏱️ Readings take ~15 s warm (median, 12–19 s) on a consumer GPU, and they run in the background: the
+upload returns at once. The model is loaded as soon as the upload page opens.
 
 ## 🔓 Why open matters
 
