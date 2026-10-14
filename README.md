@@ -78,6 +78,10 @@ the domain checks every digit it can, and a person confirms. Nothing is confirme
 
 The model's answer and the person's corrections go through **the same** validation.
 
+When a CNPJ or access key fails its check digits, the model reads that field once more on its own, and the
+app tries swapping digits that small print makes look alike (8↔3, 1↔7, 0↔8…) in both readings: if exactly one
+value passes, review offers it as a **suggested correction**, one tap to use, never applied by itself.
+
 ### ⏱️ No waiting for the model
 
 A reading takes ~15 s on a consumer GPU, nearly all of it the model's own reasoning (the image itself is

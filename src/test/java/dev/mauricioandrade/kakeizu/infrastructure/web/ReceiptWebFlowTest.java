@@ -41,6 +41,8 @@ class ReceiptWebFlowTest {
     private static final SecureRandom RANDOM = new SecureRandom();
     // What the review page says while the model is still reading
     static final String READING_MARK = "is reading this photo";
+    // Made up, with valid check digits: state 35, October 2026, CNPJ 23.010.551/0001-31
+    static final String KEY = "35261023010551000131650010000123451123456787";
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
 
     @InjectMock
@@ -68,6 +70,44 @@ class ReceiptWebFlowTest {
                 .body(containsString("Pagsmile"))
                 .body(containsString("aria-invalid=\"true\""))
                 .body(containsString("Some fields need fixing"));
+    }
+
+    @Test
+    void aMisreadCnpjComesWithASuggestedCorrectionThatIsNotApplied() {
+        // 2 read as 7 in the first digit; the re-read (mocked) answers nothing, so the search finds it
+        modelReads(nfce("73.010.551/0001-31", KEY));
+
+        user().when().get(upload(uniquePng()))
+                .then().statusCode(200)
+                .body(containsString("Suggested correction"))
+                .body(containsString("likely misread digit"))
+                .body(containsString("data-fill=\"taxId\" data-value=\"23010551000131\""))
+                .body(containsString("<mark>2</mark>"))
+                .body(containsString("value=\"73.010.551/0001-31\""));
+    }
+
+    @Test
+    void aMisreadAccessKeyWithSeveralCandidatesListsThemWithoutChoosing() {
+        modelReads(nfce("23.010.551/0001-31", KEY.substring(0, 30) + "7" + KEY.substring(31)));
+
+        user().when().get(upload(uniquePng()))
+                .then().statusCode(200)
+                .body(containsString("More than one value passes the check"))
+                .body(containsString("data-value=\"" + KEY + "\""))
+                .body(not(containsString("Suggested correction")));
+    }
+
+    @Test
+    void theSuggestionGoesOnceTheFieldIsFixed() {
+        modelReads(nfce("73.010.551/0001-31", KEY));
+        String review = upload(uniquePng());
+
+        // Takes the suggestion, but the amount is still wrong: the page comes back without it
+        user().formParams(Map.of("type", "NFCE", "amount", "eighty", "date", date, "counterparty", "Posto",
+                        "taxId", "23010551000131", "uniqueId", KEY, "category", "FUEL_SUPPLY", "direction", "SALE"))
+                .when().post(review.replace("/review", "/confirm"))
+                .then().statusCode(422)
+                .body(not(containsString("Suggested correction")));
     }
 
     @Test
@@ -310,6 +350,11 @@ class ReceiptWebFlowTest {
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private ReceiptFields nfce(String cnpj, String key) {
+        return new ReceiptFields("NFCE", "129.80", date, "Posto Exemplo", cnpj, key, "FUEL_SUPPLY", "10:15", "CASH",
+                "1", null, null);
     }
 
     private void modelReads(ReceiptFields fields) {

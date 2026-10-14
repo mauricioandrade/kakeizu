@@ -1,6 +1,7 @@
 {#include base}
 {#title}Kakeizu · Review{/title}
 {#page}review{/page}
+{#scripts}<script src="/js/review.js" defer></script>{/scripts}
 <section class="review"{#if receipt.reading} hx-get="/receipts/{receipt.id}/review" hx-trigger="every 2s" hx-select="main" hx-target="main" hx-swap="outerHTML"{/if}>
     <figure class="photo">
         <a href="/receipts/{receipt.id}/image" target="_blank" rel="noopener">
@@ -58,11 +59,13 @@
                     <h2 class="group-title">Who</h2>
                     {#field name='counterparty' label='Issuer / payer' hint='On a cheque, the account holder who wrote it' value=result.fields.counterparty result=result /}
                     {#field name='taxId' label='CNPJ' value=result.fields.taxId result=result maxlength=30 num='text' /}
+                    {#suggestion name='taxId' suggestion=receipt.suggestionFor(result, 'taxId') /}
                 </div>
 
                 <div class="group">
                     <h2 class="group-title">Proof</h2>
                     {#field name='uniqueId' label='Unique ID' value=result.fields.uniqueId result=result maxlength=60 num='text' hint='NF-e/NFC-e access key, Pix ID, card authorization code or the cheque magnetic line (CMC-7)' /}
+                    {#suggestion name='uniqueId' suggestion=receipt.suggestionFor(result, 'uniqueId') /}
                 </div>
 
                 <div class="group">

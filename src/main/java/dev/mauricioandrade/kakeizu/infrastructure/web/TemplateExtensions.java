@@ -5,12 +5,17 @@ import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
+import dev.mauricioandrade.kakeizu.domain.model.FieldRecovery;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.Receipt;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
+import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Ambiguous;
+import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Recovered;
+import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Unrecoverable;
+import dev.mauricioandrade.kakeizu.domain.model.RecoverySource;
 import dev.mauricioandrade.kakeizu.domain.model.ValidationIssue;
 import io.quarkus.qute.TemplateExtension;
 import java.math.BigDecimal;
@@ -18,6 +23,7 @@ import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.DayOfWeek;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -200,6 +206,64 @@ public class TemplateExtensions {
 
     static boolean hasErrorIn(ExtractionResult result, String field) {
         return issuesFor(result, field).stream().anyMatch(ValidationIssue::isError);
+    }
+
+    /**
+     * A correction to offer under a field that failed its check digits: one value (with where it came from) or
+     * several to choose from. {@code source} is null when there are several.
+     */
+    public record Suggestion(String original, String source, List<Option> options) {
+    }
+
+    /**
+     * A value to offer, split in groups of 4 like the access key is printed, with the characters that differ
+     * from what the model read marked.
+     */
+    public record Option(String value, List<List<Char>> groups) {
+    }
+
+    public record Char(char value, boolean changed) {
+    }
+
+    // {receipt.suggestionFor(result, 'taxId')} -> null unless a pending field still fails and something was found for it
+    static Suggestion suggestionFor(ReceiptRecord receipt, ExtractionResult result, String field) {
+        if (!pending(receipt) || !hasErrorIn(result, field)) {
+            return null;
+        }
+        return receipt.recoveryOf(field).map(TemplateExtensions::suggestion).orElse(null);
+    }
+
+    private static Suggestion suggestion(FieldRecovery recovery) {
+        String original = recovery.original();
+        return switch (recovery.result()) {
+            case Recovered(var value, var source) ->
+                    new Suggestion(original, sourceLabel(source), List.of(option(value, original)));
+            case Ambiguous(var candidates) ->
+                    new Suggestion(original, null, candidates.stream().map(c -> option(c, original)).toList());
+            case Unrecoverable() -> null;
+        };
+    }
+
+    private static String sourceLabel(RecoverySource source) {
+        return switch (source) {
+            case REREAD -> "re-read";
+            case CONFUSION_SEARCH -> "likely misread digit";
+        };
+    }
+
+    // A re-read may have another length: then nothing lines up, and nothing is marked
+    private static Option option(String value, String original) {
+        String read = original.replaceAll("[.\\-/\\s]", "").toUpperCase(Locale.ROOT);
+        boolean comparable = read.length() == value.length();
+        var groups = new ArrayList<List<Char>>();
+        for (int start = 0; start < value.length(); start += 4) {
+            var group = new ArrayList<Char>();
+            for (int i = start; i < Math.min(start + 4, value.length()); i++) {
+                group.add(new Char(value.charAt(i), comparable && read.charAt(i) != value.charAt(i)));
+            }
+            groups.add(group);
+        }
+        return new Option(value, groups);
     }
 
     // {status.cssClass} -> pending-review
