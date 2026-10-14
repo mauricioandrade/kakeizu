@@ -1,6 +1,7 @@
 package dev.mauricioandrade.kakeizu.infrastructure.persistence;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
@@ -8,6 +9,7 @@ import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cmc7;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
+import dev.mauricioandrade.kakeizu.domain.model.FieldRecovery;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
@@ -106,6 +108,7 @@ public class PanacheReceiptRepository implements ReceiptRepository {
         entity.imageSha256 = receipt.imageSha256();
         entity.imageContentType = receipt.imageContentType();
         entity.rawModelOutput = receipt.rawModelOutput();
+        entity.fieldRecoveries = toJson(receipt.recoveries().stream().map(StoredRecovery::from).toList());
         entity.createdAt = receipt.createdAt();
         receipt.confirmation().ifPresentOrElse(c -> copyConfirmed(c, entity), () -> clearConfirmed(entity));
     }
@@ -157,7 +160,8 @@ public class PanacheReceiptRepository implements ReceiptRepository {
     private ReceiptRecord toDomain(ReceiptEntity entity) {
         return new ReceiptRecord(entity.id, entity.status, fromJson(entity.fields), entity.category,
                 Optional.ofNullable(entity.type).map(_ -> toConfirmation(entity)),
-                entity.imageSha256, entity.imageContentType, entity.rawModelOutput, entity.createdAt);
+                entity.imageSha256, entity.imageContentType, entity.rawModelOutput,
+                recoveriesFromJson(entity.fieldRecoveries), entity.createdAt);
     }
 
     // Receipts confirmed before V2 have no payment columns
@@ -197,9 +201,9 @@ public class PanacheReceiptRepository implements ReceiptRepository {
         return e;
     }
 
-    private String toJson(ReceiptFields fields) {
+    private String toJson(Object value) {
         try {
-            return objectMapper.writeValueAsString(fields);
+            return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new UncheckedIOException(e);
         }
@@ -208,6 +212,18 @@ public class PanacheReceiptRepository implements ReceiptRepository {
     private ReceiptFields fromJson(String json) {
         try {
             return objectMapper.readValue(json, ReceiptFields.class);
+        } catch (JsonProcessingException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private List<FieldRecovery> recoveriesFromJson(String json) {
+        if (json == null) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<StoredRecovery>>() { }).stream()
+                    .map(StoredRecovery::toDomain).toList();
         } catch (JsonProcessingException e) {
             throw new UncheckedIOException(e);
         }

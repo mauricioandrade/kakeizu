@@ -5,18 +5,26 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.mauricioandrade.kakeizu.domain.exception.ReceiptReadingException;
+import dev.mauricioandrade.kakeizu.domain.model.CheckDigitField;
+import dev.mauricioandrade.kakeizu.domain.model.FieldReading;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import org.junit.jupiter.api.Test;
 
 class GemmaReceiptReaderTest {
 
     final ReceiptExtractionService service = mock(ReceiptExtractionService.class);
-    final GemmaReceiptReader reader = new GemmaReceiptReader(service, new ObjectMapper(), 1);
+    final FieldRereadService rereadService = mock(FieldRereadService.class);
+    final GemmaReceiptReader reader = new GemmaReceiptReader(service, rereadService, new ObjectMapper(), 1);
 
     @Test
     void passesTheModelOutputThroughUntouched() {
@@ -64,6 +72,38 @@ class GemmaReceiptReaderTest {
                 .thenReturn(new ExtractedReceipt("PIX", "1.00", null, null, null, null, null, null, null, null, null));
 
         assertThrows(ReceiptReadingException.class, () -> reader.read(new byte[]{1}, "image/png"));
+        assertEquals("PIX", reader.read(new byte[]{1}, "image/png").fields().type());
+    }
+
+    @Test
+    void rereadsAFieldByItsPrintedNameAndLength() {
+        when(rereadService.reread(any(), anyString(), anyInt())).thenReturn(new RereadField("23010551000131"));
+
+        var reading = reader.reread(new byte[]{1}, "image/png", CheckDigitField.CNPJ);
+
+        assertEquals(new FieldReading("23010551000131", "{\"value\":\"23010551000131\"}"), reading);
+        verify(rereadService).reread(any(), contains("CNPJ"), eq(14));
+    }
+
+    @Test
+    void anUnreadableFieldOnRereadIsNull() {
+        when(rereadService.reread(any(), anyString(), anyInt())).thenReturn(new RereadField("null"));
+
+        var reading = reader.reread(new byte[]{1}, "image/png", CheckDigitField.NFE_ACCESS_KEY);
+
+        assertNull(reading.value());
+        assertEquals("{\"value\":\"null\"}", reading.rawOutput());
+        verify(rereadService).reread(any(), contains("Chave de Acesso"), eq(44));
+    }
+
+    @Test
+    void rereadErrorsBecomeADomainExceptionAndFreeTheModel() {
+        when(rereadService.reread(any(), anyString(), anyInt())).thenThrow(new RuntimeException("Read timed out"));
+        when(service.extract(any()))
+                .thenReturn(new ExtractedReceipt("PIX", "1.00", null, null, null, null, null, null, null, null, null));
+
+        assertThrows(ReceiptReadingException.class,
+                () -> reader.reread(new byte[]{1}, "image/png", CheckDigitField.CNPJ));
         assertEquals("PIX", reader.read(new byte[]{1}, "image/png").fields().type());
     }
 }

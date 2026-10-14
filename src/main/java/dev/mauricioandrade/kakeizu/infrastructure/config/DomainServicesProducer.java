@@ -2,6 +2,7 @@ package dev.mauricioandrade.kakeizu.infrastructure.config;
 
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Shop;
+import dev.mauricioandrade.kakeizu.domain.service.CheckDigitRecovery;
 import dev.mauricioandrade.kakeizu.domain.service.ExtractionMapper;
 import dev.mauricioandrade.kakeizu.domain.service.ReceiptValidator;
 import dev.mauricioandrade.kakeizu.domain.service.SalesReportCalculator;
@@ -34,6 +35,12 @@ public class DomainServicesProducer {
     @Singleton
     ExtractionMapper extractionMapper(ReceiptValidator validator, Shop shop) {
         return new ExtractionMapper(validator, shop);
+    }
+
+    @Produces
+    @Singleton
+    CheckDigitRecovery checkDigitRecovery() {
+        return new CheckDigitRecovery();
     }
 
     @Produces

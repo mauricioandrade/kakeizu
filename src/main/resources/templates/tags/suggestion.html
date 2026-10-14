@@ -1,0 +1,19 @@
+{! A correction found for a field that failed its check digits. Never applied by itself: a tap copies it into the field, which stays editable. Params: name, suggestion (may be null) !}
+{#if suggestion}
+<div class="suggestion" id="{name}-suggestion">
+    {#if suggestion.source}
+    <p><strong>Suggested correction</strong> <span class="from">· {suggestion.source}</span></p>
+    {#else}
+    <p><strong>More than one value passes the check.</strong> Compare with the photo:</p>
+    {/if}
+    <p class="from">The model read <span class="num">{suggestion.original}</span></p>
+    <ul>
+        {#for option in suggestion.options}
+        <li>
+            <span class="value">{#for group in option.groups}<span class="grp">{#for c in group}{#if c.changed}<mark>{c.value}</mark>{#else}{c.value}{/if}{/for}</span>{/for}</span>
+            <button type="button" class="btn-quiet" data-fill="{name}" data-value="{option.value}">{#if suggestion.source}Use this{#else}Use{/if}</button>
+        </li>
+        {/for}
+    </ul>
+</div>
+{/if}
