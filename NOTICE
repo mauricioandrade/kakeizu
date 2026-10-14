@@ -11,5 +11,10 @@ Third-party content NOT covered by this license:
     here only as illustration. They are not licensed under the Apache License and may not be reused
     under it.
 
+  src/main/resources/META-INF/resources/fonts/*.woff2
+    Atkinson Hyperlegible Next and Atkinson Hyperlegible Mono, Copyright 2020-2024 their Project Authors,
+    distributed under the SIL Open Font License 1.1 (OFL-atkinson-next.txt and OFL-atkinson-mono.txt
+    in the same folder).
+
   src/main/resources/META-INF/resources/js/htmx-*.min.js
     htmx, Copyright Big Sky Software, distributed under its own license (Zero-Clause BSD).
