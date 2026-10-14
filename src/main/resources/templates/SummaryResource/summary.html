@@ -1,10 +1,10 @@
 {#include base}
-{#title}Kakeizu · Summary{/title}
+{#title}Kakeizu · Day close{/title}
 {#page}summary{/page}
 {#currentSummary} aria-current="page"{/currentSummary}
 <section class="slip" aria-labelledby="summary-title">
     <div class="slip-head">
-        <h1 class="slip-title" id="summary-title">Day summary</h1>
+        <h1 class="slip-title" id="summary-title">Day close</h1>
         <span class="slip-meta">{summary.day}</span>
     </div>
     <form method="get" action="/summary" class="datebar">
@@ -15,25 +15,49 @@
         <button type="submit" class="btn-quiet">Show</button>
     </form>
 
-    {#if summary.count > 0}
-    <h2 class="section-title">By type</h2>
-    <table class="rows">
-        {#for entry in summary.byType.entrySet}
+    {#if summary.toReview > 0}
+    <p class="notice notice-warn" role="status"><strong>{summary.toReview} photo{#if summary.toReview != 1}s{/if} from this day still to review.</strong>{#if summary.toReview != 1}They are{#else}It is{/if} not counted below. <a href="/">Review on Today</a></p>
+    {/if}
+
+    {#if summary.sales.count > 0}
+    <h2 class="section-title">In · sales <span class="section-count">{summary.sales.count}</span></h2>
+    <table class="rows close-rows">
+        {#for entry in summary.sales.byMethod.entrySet}
         <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
+        {#if entry.key.name == 'CREDIT' && summary.sales.inInstallments.positive}
+        <tr class="sub"><th scope="row">in installments</th><td>{summary.sales.inInstallments.brl}</td></tr>
+        {/if}
         {/for}
-    </table>
-    <h2 class="section-title">By category</h2>
-    <table class="rows">
-        {#for entry in summary.byCategory.entrySet}
-        <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
-        {/for}
+        <tr class="subtotal"><th scope="row">Total in</th><td>{summary.sales.total.brl}</td></tr>
     </table>
     {/if}
 
-    <div class="grand">
-        <span class="label">TOTAL</span>
-        <span class="value">{summary.total.brl}</span>
+    {#if summary.expenses.count > 0}
+    <h2 class="section-title">Out · expenses <span class="section-count">{summary.expenses.count}</span></h2>
+    <table class="rows close-rows">
+        {#for entry in summary.expenses.byCategory.entrySet}
+        <tr><th scope="row">{entry.key.label}</th><td>{entry.value.brl}</td></tr>
+        {/for}
+        <tr class="subtotal"><th scope="row">Total out</th><td>{summary.expenses.total.brl}</td></tr>
+    </table>
+    {/if}
+
+    <div class="grand{#if summary.balance.negative} negative{/if}">
+        <span class="label">BALANCE</span>
+        <span class="value">{summary.balance.brl}</span>
     </div>
-    <p class="slip-note">{summary.count} confirmed receipt{#if summary.count != 1}s{/if} issued on {summary.day}. Receipts still to review are not counted.</p>
+
+    {#if summary.cash.moved}
+    <h2 class="section-title">Cash drawer</h2>
+    <table class="rows close-rows">
+        <tr><th scope="row">Cash sales</th><td>{summary.cash.received.brl}</td></tr>
+        <tr><th scope="row">Cash expenses</th><td>− {summary.cash.paidOut.brl}</td></tr>
+        <tr class="subtotal{#if summary.cash.drawer.negative} negative{/if}"><th scope="row">In the drawer</th><td>{summary.cash.drawer.brl}</td></tr>
+    </table>
+    {/if}
+
+    <p class="slip-note">{#if summary.count == 0}Nothing confirmed with this issue date yet.{#else}{summary.count} confirmed receipt{#if summary.count != 1}s{/if} issued on <span class="nowrap">{summary.day}</span>.{/if}
+        {#if summary.pairedDocuments > 0}{summary.pairedDocuments} NF-e/NFC-e counted once with {#if summary.pairedDocuments != 1}their{#else}its{/if} card slip, Pix or cheque.{/if}
+        {#if summary.unclassified > 0}{summary.unclassified} confirmed before sales and expenses were told apart {#if summary.unclassified != 1}are{#else}is{/if} on neither side.{/if}</p>
 </section>
 {/include}

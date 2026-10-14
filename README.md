@@ -60,7 +60,7 @@ the domain checks every digit it can, and a person confirms. Nothing is confirme
 <td align="center">➜</td>
 <td align="center">🧑<br><b>Review</b><br><sub>photo next to the form,<br>fix and confirm</sub></td>
 <td align="center">➜</td>
-<td align="center">📊<br><b>Summary</b><br><sub>daily totals and<br>sales report</sub></td>
+<td align="center">📊<br><b>Close</b><br><sub>in, out, balance<br>and sales report</sub></td>
 </tr>
 </table>
 
@@ -108,9 +108,9 @@ handed over explicitly, since a scoped value does not cross into an executor on 
 
 ## 📸 Screenshots
 
-| 📱 Today | 🔍 Review | 📊 Sales report |
-|:---:|:---:|:---:|
-| ![Upload and today's receipts](docs/screenshots/today-phone.png) | ![Review: the photo next to the editable fields, problems highlighted](docs/screenshots/review.png) | ![Sales by time, weekday, method, installments and brand](docs/screenshots/sales-phone.png) |
+| 📱 Today | 🔍 Review | 🧾 Day close | 📊 Sales report |
+|:---:|:---:|:---:|:---:|
+| ![Upload and today's receipts](docs/screenshots/today-phone.png) | ![Review: the photo next to the editable fields, problems highlighted](docs/screenshots/review.png) | ![Day close: sales by payment method, expenses by category, balance and cash drawer](docs/screenshots/close-phone.png) | ![Sales by time, weekday, method, installments and brand](docs/screenshots/sales-phone.png) |
 
 <img src="docs/gifs/wrong-amount.gif" alt="Joey from Friends, disappointed" width="160" align="right">
 
@@ -308,6 +308,14 @@ Copy the backup folder to another disk now and then: a backup on the same machin
 dead disk. Flyway migrations only go forward, so take a backup before upgrading.
 
 </details>
+
+## 🧾 Day close
+
+`/summary` closes a day like the Z report a card machine prints: what came **in** (sales by payment method,
+credit in installments apart), what went **out** (expenses by category), the **balance**, and the **cash
+drawer**: cash sales minus cash expenses, the number to check against the notes in the till. Photos of
+that day still to review are flagged on top, since they are not counted yet. An NFC-e and its card slip
+are one sale, and a supplier's NF-e and the Pix that paid it are one expense (same pairing as below).
 
 ## 📊 Sales report
 

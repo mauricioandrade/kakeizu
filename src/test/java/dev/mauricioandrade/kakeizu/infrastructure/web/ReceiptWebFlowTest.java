@@ -157,7 +157,7 @@ class ReceiptWebFlowTest {
     }
 
     @Test
-    void confirmedReceiptShowsUpInTheSummaryOfItsDay() {
+    void confirmedSaleShowsUpInTheCloseOfItsDay() {
         modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId + "X", "OTHER", null, null, null, null, null));
         String review = upload(uniquePng());
 
@@ -167,9 +167,29 @@ class ReceiptWebFlowTest {
 
         user().queryParam("date", date).when().get("/summary")
                 .then().statusCode(200)
+                .body(containsString("In · sales"))
+                .body(containsString("Pix"))
                 .body(containsString("1.234,56"))
-                .body(containsString("Services"))
+                .body(not(containsString("Out · expenses")))
                 .body(containsString("1 confirmed receipt issued"));
+    }
+
+    @Test
+    void aDayThatSpentMoreThanItSoldClosesNegativeWithTheCashTakenFromTheDrawer() {
+        modelReads(new ReceiptFields("PIX", "50.00", date, "Cliente", null, pixId, "OTHER", null, null, null, null, null));
+        confirm(upload(uniquePng()), Map.of("type", "PIX", "amount", "50.00", "date", date,
+                "counterparty", "Cliente", "uniqueId", pixId, "category", "GOODS", "direction", "SALE"));
+        confirm(upload(uniquePng()), Map.of("type", "NFCE", "amount", "120.00", "date", date,
+                "counterparty", "Fornecedor", "taxId", "23.010.551/0001-31", "uniqueId", KEY,
+                "category", "UTILITIES", "paymentMethod", "CASH", "direction", "EXPENSE"));
+
+        user().queryParam("date", date).when().get("/summary")
+                .then().statusCode(200)
+                .body(containsString("Out · expenses"))
+                .body(containsString("Utilities"))
+                .body(containsString("class=\"grand negative\""))
+                .body(containsString("In the drawer"))
+                .body(containsString("class=\"subtotal negative\""));
     }
 
     @Test
@@ -350,6 +370,10 @@ class ReceiptWebFlowTest {
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private void confirm(String review, Map<String, String> fields) {
+        user().formParams(fields).when().post(review.replace("/review", "/confirm")).then().statusCode(303);
     }
 
     private ReceiptFields nfce(String cnpj, String key) {
