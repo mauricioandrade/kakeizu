@@ -47,3 +47,6 @@ nb-configuration.xml
 # Kakeizu
 application-local.properties
 data/
+
+# Assistant instructions (local only)
+CLAUDE.md
