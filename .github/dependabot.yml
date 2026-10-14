@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      quarkus:
+        patterns:
+          - "io.quarkus*"
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
