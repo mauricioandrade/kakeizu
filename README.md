@@ -98,7 +98,8 @@ installments, and by card brand.
 - **Cheques, only if the shop takes them.** With `KAKEIZU_SHOP_ACCEPTS_CHEQUES=true` a photo of a cheque is
   read as a cheque. The magnetic line at the bottom (CMC-7) is optional, because the model cannot read it
   from a photo; when typed, its three check digits are verified and it stops the same cheque from being
-  entered twice. A post-dated cheque only gets a warning. Without the setting, a cheque, or an NFC-e paid by
+  entered twice. A post-dated cheque only gets a warning, and so does one dated more than 6 months ago (too old to
+  cash, or more likely a misread year). Without the setting, a cheque, or an NFC-e paid by
   cheque, is flagged on review.
 - **Pix on the card machine.** The slip shows the machine's own transaction ID, not the Pix end-to-end ID,
   so a Pix without an end-to-end ID is accepted and deduplicated by the photo only.
@@ -162,7 +163,7 @@ with the current prompt:
 | Getnet debit slip | 3 / 3 | — |
 | NFC-e paid in cash | 2 / 3 | once a CNPJ digit dropped: **caught** (length). The 44-digit access key was right every time |
 | Getnet Pix slip | 0 / 3 | the machine's own transaction ID taken as the Pix end-to-end ID: **caught** (length and prefix); the person clears it on review. The sideways CNPJ was missed |
-| Cheque (handwritten) | 1 / 3 | year read as 2022 instead of 2026 every time and the payer's name misspelled: **not caught**. Once the cheque number was taken as the magnetic line: **caught** (CMC-7 check digits) |
+| Cheque (handwritten) | 1 / 3 | year read as 2022 instead of 2026 every time: **flagged** (a cheque dated more than 6 months ago gets a warning). The payer's name misspelled: **not caught**. Once the cheque number was taken as the magnetic line: **caught** (CMC-7 check digits) |
 
 What changed the prompt this round:
 

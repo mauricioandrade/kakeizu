@@ -143,7 +143,7 @@ public record CardReceipt(Money amount, LocalDate issuedOn, String counterparty,
 // Fase 7: cheque, só se o estabelecimento aceitar (KAKEIZU_SHOP_ACCEPTS_CHEQUES, padrão false; se desligado,
 // cheque ou NFC-e paga em cheque viram erro na revisão). counterparty é quem paga (o titular impresso).
 // CMC-7 opcional (o modelo não lê a linha magnética da foto); se vier, os 3 DVs módulo 10 são validados e ele
-// deduplica. Cheque pré-datado gera só alerta.
+// deduplica. Cheque pré-datado ou com mais de 6 meses (prescrito ou ano mal lido) gera só alerta.
 public record ChequeReceipt(Money amount, LocalDate issuedOn, String counterparty, Cmc7 cmc7) implements Receipt {}
 ```
 
