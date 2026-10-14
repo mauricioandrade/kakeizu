@@ -12,7 +12,8 @@ services:
     ports:
       - "127.0.0.1:5432:5432"   # same machine only: the app is the only client
     volumes:
-      - kakeizu-data:/var/lib/postgresql/data
+      # PostgreSQL 18+ keeps its data in a versioned subdirectory (18/docker) and refuses the old /data mount
+      - kakeizu-data:/var/lib/postgresql
       - ./docker/postgres:/docker-entrypoint-initdb.d:ro
 
 volumes:
