@@ -6,7 +6,8 @@ import java.time.LocalDate;
 public interface DailySummaryUseCase {
 
     /**
-     * Totals of the receipts confirmed with the given issue date.
+     * The day close: sales, expenses, balance and cash drawer from the receipts confirmed with the given issue
+     * date, plus how many photos uploaded that day are still to review.
      */
     DailySummary summarize(LocalDate day);
 }

@@ -3,6 +3,7 @@ package dev.mauricioandrade.kakeizu.infrastructure.config;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.service.CheckDigitRecovery;
+import dev.mauricioandrade.kakeizu.domain.service.DailySummaryCalculator;
 import dev.mauricioandrade.kakeizu.domain.service.ExtractionMapper;
 import dev.mauricioandrade.kakeizu.domain.service.ReceiptValidator;
 import dev.mauricioandrade.kakeizu.domain.service.SalesReportCalculator;
@@ -41,6 +42,12 @@ public class DomainServicesProducer {
     @Singleton
     CheckDigitRecovery checkDigitRecovery() {
         return new CheckDigitRecovery();
+    }
+
+    @Produces
+    @Singleton
+    DailySummaryCalculator dailySummaryCalculator() {
+        return new DailySummaryCalculator();
     }
 
     @Produces

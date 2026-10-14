@@ -9,9 +9,9 @@ import static org.mockito.Mockito.when;
 
 import dev.mauricioandrade.kakeizu.domain.model.ConfirmResult;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
+import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
-import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
 import dev.mauricioandrade.kakeizu.domain.port.in.ConfirmReceiptUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.in.DailySummaryUseCase;
@@ -71,7 +71,7 @@ class ReceiptFlowTest {
 
         var day = summary.summarize(DAY);
         assertEquals(1, day.count());
-        assertEquals(Map.of(ReceiptType.PIX, new Money("80")), day.byType());
+        assertEquals(Map.of(PaymentMethod.PIX, new Money("80")), day.sales().byMethod());
     }
 
     // The model reads in the background, on the real worker thread
