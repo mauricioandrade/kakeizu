@@ -11,7 +11,7 @@
 ![Quarkus 3.40](https://img.shields.io/badge/Quarkus-3.40-4695EB?logo=quarkus&logoColor=white)
 ![Ollama](https://img.shields.io/badge/Ollama-local-000000?logo=ollama&logoColor=white)
 ![Gemma](https://img.shields.io/badge/Gemma-vision-8E75B2?logo=googlegemini&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)
 ![htmx](https://img.shields.io/badge/htmx-2.0-3366CC?logo=htmx&logoColor=white)
 ![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-D22128?logo=apache&logoColor=white)
 
@@ -132,7 +132,7 @@ no check digit, so the person is the one who catches it.
 | ☕ Language | Java 25 (records, sealed interfaces, pattern matching, flexible constructor bodies, scoped values; structured concurrency as a preview) |
 | ⚡ Framework | Quarkus 3.40, Maven |
 | 🤖 AI | LangChain4j + Ollama, `gemma4:e4b` by default (any Ollama vision model works) |
-| 🐘 Database | PostgreSQL 16 + Flyway |
+| 🐘 Database | PostgreSQL 18 + Flyway |
 | 🖥️ Web | Qute templates + htmx, no frontend build; Atkinson Hyperlegible (self-hosted) |
 | 🔐 Security | form login (single `admin`, PBKDF2), HTTPS on the network, strict CSP |
 
@@ -260,6 +260,26 @@ DB_PASSWORD=...         # the app's own role, which is not a superuser
 
 On first start it creates the `kakeizu` role that owns the database (so Flyway can create the tables)
 but cannot create roles or databases. The app reads the same `DB_PASSWORD`.
+
+**Coming from PostgreSQL 16?** Version 18 cannot open a data folder made by 16, and its image wants the
+volume at `/var/lib/postgresql` instead of `/var/lib/postgresql/data` (the compose file already does that).
+Move the data with a dump, before starting the app:
+
+```bash
+# 1. Dump the old volume with a throwaway PostgreSQL 16 container
+docker compose down
+docker run -d --name kakeizu-pg16 -v kakeizu_kakeizu-data:/var/lib/postgresql/data postgres:16-alpine
+sleep 5
+docker exec kakeizu-pg16 pg_dump -U postgres --format=custom kakeizu > kakeizu-16.dump
+docker rm -f kakeizu-pg16
+
+# 2. Start 18 on a fresh volume and restore (keep the dump until the app shows your receipts)
+docker volume rm kakeizu_kakeizu-data
+docker compose up -d
+docker compose exec -T postgres pg_restore -U kakeizu -d kakeizu --no-owner < kakeizu-16.dump
+```
+
+Dev mode and tests are not affected: Dev Services start a fresh PostgreSQL 18 container every time.
 
 </details>
 
