@@ -50,6 +50,31 @@ class ReceiptValidatorTest {
     }
 
     @Test
+    void chequeOlderThanSixMonthsIsOnlyAWarning() {
+        // The model read the handwritten "26" of a real cheque as 2022
+        var cheque = new ChequeReceipt(new Money("9657"), LocalDate.of(2022, 10, 13), "Transportadora Exemplo", null);
+
+        assertEquals(List.of(ValidationIssue.warning("date",
+                        "Cheque dated more than 6 months ago: check the year, an old cheque may no longer be cashed")),
+                validator.validate(cheque));
+    }
+
+    @Test
+    void chequeFromLastMonthHasNoIssues() {
+        var cheque = new ChequeReceipt(new Money("9657"), LocalDate.of(2026, 9, 13), "Transportadora Exemplo", null);
+
+        assertEquals(List.of(), validator.validate(cheque));
+    }
+
+    @Test
+    void oldPixIsNotFlagged() {
+        var pix = new PixReceipt(new Money("80"), LocalDate.of(2022, 8, 12), "Pagsmile",
+                new PixEndToEndId("E00416968202208120422Mmzi9rPYPLT"));
+
+        assertEquals(List.of(), validator.validate(pix));
+    }
+
+    @Test
     void dateOutsideTheKeyMonthIsAWarning() {
         var issues = validator.validate(invoice(LocalDate.of(2022, 11, 5), ISSUER, NFE_KEY));
 

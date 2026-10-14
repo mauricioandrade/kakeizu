@@ -23,6 +23,8 @@ import java.util.List;
  */
 public class ReceiptValidator {
 
+    static final int STALE_CHEQUE_MONTHS = 6;
+
     private final Clock clock;
 
     public ReceiptValidator(Clock clock) {
@@ -36,6 +38,12 @@ public class ReceiptValidator {
             issues.add(receipt instanceof ChequeReceipt
                     ? warning("date", "Post-dated cheque: it can only be deposited on " + receipt.issuedOn())
                     : error("date", "Date is in the future: " + receipt.issuedOn()));
+        } else if (receipt instanceof ChequeReceipt && receipt.issuedOn().isBefore(LocalDate.now(clock)
+                .minusMonths(STALE_CHEQUE_MONTHS))) {
+            // A cheque must be cashed within 30 to 60 days and expires 6 months after that, so a date this old
+            // is either a stale cheque or a misread year (the model reads a handwritten "26" as 2022)
+            issues.add(warning("date", "Cheque dated more than " + STALE_CHEQUE_MONTHS
+                    + " months ago: check the year, an old cheque may no longer be cashed"));
         }
         issues.addAll(switch (receipt) {
             case FiscalInvoice(_, var issuedOn, _, var issuerCnpj, var accessKey) ->
