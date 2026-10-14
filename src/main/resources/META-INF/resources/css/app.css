@@ -352,6 +352,13 @@ input:focus-visible, select:focus-visible { outline: 3px solid var(--ink); outli
 .rows th { text-align: left; font-weight: 700; }
 .rows td { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums slashed-zero; white-space: nowrap; }
 .rows .bar-cell { width: auto; padding: 0 14px; }
+.close-rows th { width: auto; }
+.rows .sub th { padding-left: 2ch; font-weight: 400; color: var(--ink-soft); }
+.rows .sub td { color: var(--ink-soft); }
+.rows .subtotal th, .rows .subtotal td { font-weight: 800; border-top: 2px solid var(--ink); border-bottom: 0; }
+.rows .subtotal.negative td, .grand.negative .value { color: var(--error); }
+.nowrap { white-space: nowrap; }
+.section-count { margin-left: .6ch; font-weight: 400; color: var(--ink-soft); }
 .section-title {
     font-family: var(--mono); font-size: .85rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
     margin-top: 22px;

@@ -43,6 +43,20 @@ public class TemplateExtensions {
         return NumberFormat.getCurrencyInstance(BRAZIL).format(money.value());
     }
 
+    // {summary.balance.brl} -> -R$ 789,90: a balance or a drawer can be negative, an amount cannot
+    static String brl(BigDecimal value) {
+        return NumberFormat.getCurrencyInstance(BRAZIL).format(value);
+    }
+
+    // {summary.sales.inInstallments.positive}
+    static boolean positive(Money money) {
+        return money.value().signum() > 0;
+    }
+
+    static boolean negative(BigDecimal value) {
+        return value.signum() < 0;
+    }
+
     // {receipt.amountLabel} -> R$ 1.234,56 when the amount parses, else as typed (a pending receipt may be wrong)
     static String amountLabel(ReceiptRecord receipt) {
         String raw = receipt.fields().amount();

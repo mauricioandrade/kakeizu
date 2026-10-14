@@ -8,9 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
+import dev.mauricioandrade.kakeizu.domain.model.PaymentMethod;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
-import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
+import dev.mauricioandrade.kakeizu.domain.service.DailySummaryCalculator;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,14 +26,16 @@ class DailySummaryAndListServiceTest {
 
     final InMemoryReceiptRepository repository = new InMemoryReceiptRepository();
     final ConfirmReceiptService confirm = new ConfirmReceiptService(repository, Fixtures.MAPPER);
-    final DailySummaryService summary = new DailySummaryService(repository);
+    final DailySummaryService summary = new DailySummaryService(repository, new DailySummaryCalculator(),
+            Fixtures.NOW);
     final ListReceiptsService list = new ListReceiptsService(repository, Fixtures.NOW);
 
     @Test
-    void totalsOnlyConfirmedReceiptsByTypeAndCategory() {
-        confirmed(PIX_CORRECTED);                                      // 80.00   PIX  SERVICES
-        confirmed(NFCE);                                               // 146.46  NFCE GOODS
-        confirmed(CARD);                                               // 500.00  CARD FUEL_SUPPLY
+    void closesTheDayWithOnlyConfirmedReceipts() {
+        // The shop is Melhor Grão Stone (Fixtures.MAPPER): its card slips are sales, the rest expenses
+        confirmed(PIX_CORRECTED);                                      // 80.00   expense SERVICES
+        confirmed(NFCE);                                               // 146.46  expense GOODS
+        confirmed(CARD);                                               // 500.00  sale    CREDIT
         confirmed(new ReceiptFields("CARD", "20,00", "2022-08-12", "Loja", "69.034.668/0001-56", null, "GOODS", null, "CREDIT", null, null, null));
         stored(PIX_AS_READ, Instant.now());                            // pending: ignored
         confirmed(new ReceiptFields("CARD", "999", "2022-08-13", "Loja", "69.034.668/0001-56", null, "GOODS", null, "CREDIT", null, null, null)); // other day
@@ -39,12 +43,24 @@ class DailySummaryAndListServiceTest {
         var result = summary.summarize(DAY);
 
         assertEquals(4, result.count());
-        assertEquals(new Money("746,46"), result.total());
-        assertEquals(Map.of(ReceiptType.NFCE, new Money("146.46"), ReceiptType.PIX, new Money("80"),
-                ReceiptType.CARD, new Money("520")), result.byType());
-        assertEquals(Map.of(Category.FUEL_SUPPLY, new Money("500"), Category.GOODS, new Money("166.46"),
-                Category.SERVICES, new Money("80")), result.byCategory());
-        assertEquals(List.of(ReceiptType.NFCE, ReceiptType.PIX, ReceiptType.CARD), List.copyOf(result.byType().keySet()));
+        assertEquals(new Money("520"), result.sales().total());
+        assertEquals(Map.of(PaymentMethod.CREDIT, new Money("520")), result.sales().byMethod());
+        assertEquals(new Money("226.46"), result.expenses().total());
+        assertEquals(Map.of(Category.GOODS, new Money("146.46"), Category.SERVICES, new Money("80")),
+                result.expenses().byCategory());
+        assertEquals(new BigDecimal("293.54"), result.balance());
+    }
+
+    @Test
+    void countsWhatWasUploadedThatDayAndIsStillToReview() {
+        var reading = ReceiptRecord.reading(UUID.randomUUID().toString(), "image/png",
+                Instant.parse("2026-10-13T12:00:00Z"));
+        repository.save(reading);
+        stored(PIX_AS_READ, Instant.parse("2026-10-13T13:00:00Z"));    // pending review
+        confirmed(CARD, Instant.parse("2026-10-13T14:00:00Z"));       // reviewed: not left to review
+        stored(PIX_AS_READ, Instant.parse("2026-10-14T13:00:00Z"));    // another day
+
+        assertEquals(2, summary.summarize(LocalDate.of(2026, 10, 13)).toReview());
     }
 
     @Test
@@ -52,8 +68,8 @@ class DailySummaryAndListServiceTest {
         var result = summary.summarize(DAY);
 
         assertEquals(0, result.count());
-        assertEquals(new Money("0"), result.total());
-        assertEquals(Map.of(), result.byType());
+        assertEquals(new BigDecimal("0.00"), result.balance());
+        assertEquals(Map.of(), result.sales().byMethod());
     }
 
     @Test
@@ -69,7 +85,11 @@ class DailySummaryAndListServiceTest {
     }
 
     private void confirmed(ReceiptFields fields) {
-        confirm.confirm(stored(fields, Instant.now()).id(), fields);
+        confirmed(fields, Instant.now());
+    }
+
+    private void confirmed(ReceiptFields fields, Instant createdAt) {
+        confirm.confirm(stored(fields, createdAt).id(), fields);
     }
 
     private ReceiptRecord stored(ReceiptFields fields, Instant createdAt) {

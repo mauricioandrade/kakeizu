@@ -1,47 +1,40 @@
 package dev.mauricioandrade.kakeizu.application.usecase;
 
-import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.DailySummary;
-import dev.mauricioandrade.kakeizu.domain.model.Money;
-import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
-import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
+import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.port.in.DailySummaryUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptRepository;
+import dev.mauricioandrade.kakeizu.domain.service.DailySummaryCalculator;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
-import java.util.EnumMap;
-import java.util.Map;
 
 @ApplicationScoped
 public class DailySummaryService implements DailySummaryUseCase {
 
-    private static final Money ZERO = new Money(BigDecimal.ZERO);
-
     private final ReceiptRepository repository;
+    private final DailySummaryCalculator calculator;
+    private final Clock clock;
 
-    public DailySummaryService(ReceiptRepository repository) {
+    public DailySummaryService(ReceiptRepository repository, DailySummaryCalculator calculator, Clock clock) {
         this.repository = repository;
+        this.calculator = calculator;
+        this.clock = clock;
     }
 
     @Override
     @Transactional
     public DailySummary summarize(LocalDate day) {
-        var confirmed = repository.findConfirmedIssuedOn(day);
-        var byType = new EnumMap<ReceiptType, Money>(ReceiptType.class);
-        var byCategory = new EnumMap<Category, Money>(Category.class);
-        var total = ZERO;
-        for (ReceiptRecord record : confirmed) {
-            var receipt = record.confirmedReceipt().orElseThrow();
-            add(byType, receipt.type(), receipt.amount());
-            add(byCategory, record.category(), receipt.amount());
-            total = total.plus(receipt.amount());
-        }
-        return new DailySummary(day, confirmed.size(), total, byType, byCategory);
+        return calculator.calculate(day, repository.findConfirmedIssuedOn(day), toReview(day));
     }
 
-    private static <K> void add(Map<K, Money> totals, K key, Money amount) {
-        totals.merge(key, amount, Money::plus);
+    // By upload day: a photo still to review may not have a readable issue date yet
+    private int toReview(LocalDate day) {
+        var zone = clock.getZone();
+        return (int) repository.findCreatedBetween(day.atStartOfDay(zone).toInstant(),
+                        day.plusDays(1).atStartOfDay(zone).toInstant()).stream()
+                .filter(r -> r.status() == ReceiptStatus.READING || r.status() == ReceiptStatus.PENDING_REVIEW)
+                .count();
     }
 }
