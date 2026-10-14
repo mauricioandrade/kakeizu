@@ -50,14 +50,21 @@ the domain checks every digit it can, and a person confirms. Nothing is confirme
 
 ## 🔄 How it works
 
-```mermaid
-flowchart LR
-    A["📱 Photo<br>from the phone"] --> B["🤖 Gemma on Ollama<br>reads the fields"]
-    B --> C["🧮 Domain checks<br>check digits, formats, dates"]
-    C --> D["🧑 Review<br>photo next to the form"]
-    D -->|confirm| E["📊 Daily summary<br>and sales report"]
-    D -->|fix a field| C
-```
+<table align="center">
+<tr>
+<td align="center">📱<br><b>Photo</b><br><sub>from the phone</sub></td>
+<td align="center">➜</td>
+<td align="center">🤖<br><b>Gemma</b><br><sub>reads the fields,<br>locally on Ollama</sub></td>
+<td align="center">➜</td>
+<td align="center">🧮<br><b>Domain</b><br><sub>check digits,<br>formats, dates</sub></td>
+<td align="center">➜</td>
+<td align="center">🧑<br><b>Review</b><br><sub>photo next to the form,<br>fix and confirm</sub></td>
+<td align="center">➜</td>
+<td align="center">📊<br><b>Summary</b><br><sub>daily totals and<br>sales report</sub></td>
+</tr>
+</table>
+
+<p align="center"><sub>A fix on review goes back through the same domain checks before it is confirmed.</sub></p>
 
 | What is checked | How |
 |---|---|
