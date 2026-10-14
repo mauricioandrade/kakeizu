@@ -1,0 +1,25 @@
+{#include base}
+{#title}Kakeizu · Batch{/title}
+<section class="card">
+    <h1>Photos read</h1>
+    <p class="muted">Nothing is confirmed yet: open each receipt, check it against the photo and confirm.</p>
+    <ul class="receipts">
+        {#for row in rows}
+        <li>
+            {#if row.receiptId}
+            <a href="/receipts/{row.receiptId}/review{#if row.duplicate}?duplicate=true{/if}">
+                <span class="who">{row.fileName}</span>
+                <span class="badge {#if row.duplicate}rejected{#else}pending-review{/if}">{#if row.duplicate}Already uploaded{#else}To review{/if}</span>
+            </a>
+            {#else}
+            <div class="batch-failed">
+                <span class="who">{row.fileName}</span>
+                <span class="error">{row.error}</span>
+            </div>
+            {/if}
+        </li>
+        {/for}
+    </ul>
+    <p><a href="/">Back to today</a></p>
+</section>
+{/include}

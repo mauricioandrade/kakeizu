@@ -1,5 +1,7 @@
 package dev.mauricioandrade.kakeizu.infrastructure.web;
 
+import dev.mauricioandrade.kakeizu.application.logging.Correlation;
+import dev.mauricioandrade.kakeizu.domain.model.BatchItem;
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.ConfirmResult;
@@ -10,6 +12,8 @@ import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
 import dev.mauricioandrade.kakeizu.domain.model.Shop;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
+import dev.mauricioandrade.kakeizu.domain.model.UploadedImage;
+import dev.mauricioandrade.kakeizu.domain.port.in.BatchExtractReceiptUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.in.ConfirmReceiptUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.in.ExtractReceiptUseCase;
 import dev.mauricioandrade.kakeizu.domain.port.in.ReceiptImageUseCase;
@@ -28,6 +32,7 @@ import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +44,8 @@ import org.jboss.resteasy.reactive.multipart.FileUpload;
 @Path("/receipts")
 public class ReceiptResource {
 
+    // Anything far bigger than a phone photo is not a receipt
+    private static final long MAX_IMAGE_BYTES = 10L * 1024 * 1024;
     private static final List<Category> CATEGORIES = Arrays.asList(Category.values());
     private static final List<CardBrand> BRANDS = Arrays.asList(CardBrand.values());
     private static final List<Direction> DIRECTIONS = Arrays.asList(Direction.values());
@@ -59,17 +66,37 @@ public class ReceiptResource {
         }
     }
 
+    record batch(List<BatchRow> rows) implements TemplateInstance {
+    }
+
+    // One line of the batch page: a link to the review, or why the photo was not read
+    record BatchRow(String fileName, UUID receiptId, boolean duplicate, String error) {
+
+        static BatchRow of(BatchItem item) {
+            return switch (item) {
+                case BatchItem.Done(var name, UploadResult.Extracted(var receipt)) ->
+                        new BatchRow(name, receipt.id(), false, null);
+                case BatchItem.Done(var name, UploadResult.AlreadyUploaded(var receipt)) ->
+                        new BatchRow(name, receipt.id(), true, null);
+                case BatchItem.Failed(var name, var reason) -> new BatchRow(name, null, false, reason);
+            };
+        }
+    }
+
     private final ExtractReceiptUseCase extractReceipt;
+    private final BatchExtractReceiptUseCase batchExtractReceipt;
     private final ReviewReceiptUseCase reviewReceipt;
     private final ConfirmReceiptUseCase confirmReceipt;
     private final RejectReceiptUseCase rejectReceipt;
     private final ReceiptImageUseCase receiptImage;
     private final Shop shop;
 
-    public ReceiptResource(ExtractReceiptUseCase extractReceipt, ReviewReceiptUseCase reviewReceipt,
+    public ReceiptResource(ExtractReceiptUseCase extractReceipt, BatchExtractReceiptUseCase batchExtractReceipt,
+                           ReviewReceiptUseCase reviewReceipt,
                            ConfirmReceiptUseCase confirmReceipt, RejectReceiptUseCase rejectReceipt,
                            ReceiptImageUseCase receiptImage, Shop shop) {
         this.extractReceipt = extractReceipt;
+        this.batchExtractReceipt = batchExtractReceipt;
         this.reviewReceipt = reviewReceipt;
         this.confirmReceipt = confirmReceipt;
         this.rejectReceipt = rejectReceipt;
@@ -83,15 +110,43 @@ public class ReceiptResource {
         if (upload == null) {
             throw new InvalidInputException("Choose a photo of the receipt.");
         }
-        byte[] content = Files.readAllBytes(upload.uploadedFile());
-        var imageType = ImageType.detect(content)
-                .orElseThrow(() -> new InvalidInputException("Only JPG and PNG images are accepted."));
+        var image = toImage(upload);
+        var result = Correlation.with(Correlation.newId(), () -> extractReceipt.extract(image.content(), image.contentType()));
 
-        URI next = switch (extractReceipt.extract(content, imageType.mediaType())) {
+        URI next = switch (result) {
             case UploadResult.Extracted(var receipt) -> reviewUri(receipt.id(), false);
             case UploadResult.AlreadyUploaded(var receipt) -> reviewUri(receipt.id(), true);
         };
         return Response.seeOther(next).build();
+    }
+
+    @POST
+    @Path("batch")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance uploadBatch(@RestForm("images") List<FileUpload> uploads) throws IOException {
+        if (uploads == null || uploads.isEmpty()) {
+            throw new InvalidInputException("Choose the photos of the receipts.");
+        }
+        if (uploads.size() > BatchExtractReceiptUseCase.MAX_IMAGES) {
+            throw new InvalidInputException("Up to " + BatchExtractReceiptUseCase.MAX_IMAGES + " photos at a time.");
+        }
+        var images = new ArrayList<UploadedImage>();
+        for (var upload : uploads) {
+            images.add(toImage(upload));
+        }
+        return new batch(batchExtractReceipt.extractAll(images).stream().map(BatchRow::of).toList());
+    }
+
+    // The type comes from the magic bytes, never from the Content-Type the browser sent
+    private static UploadedImage toImage(FileUpload upload) throws IOException {
+        if (upload.size() > MAX_IMAGE_BYTES) {
+            throw new InvalidInputException("A photo can have up to 10 MB.");
+        }
+        byte[] content = Files.readAllBytes(upload.uploadedFile());
+        var imageType = ImageType.detect(content)
+                .orElseThrow(() -> new InvalidInputException("Only JPG and PNG images are accepted."));
+        return new UploadedImage(upload.fileName(), content, imageType.mediaType());
     }
 
     @GET

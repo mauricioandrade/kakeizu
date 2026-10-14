@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -65,6 +66,43 @@ class ReceiptWebFlowTest {
                 .body(containsString("Pagsmile"))
                 .body(containsString("aria-invalid=\"true\""))
                 .body(containsString("Some fields need fixing"));
+    }
+
+    @Test
+    void batchReadsEveryPhotoAndListsTheOneThatFailed() {
+        modelReads(new ReceiptFields("PIX", "80.00", date, "Pagsmile", null, pixId, "OTHER", null, null, null, null, null));
+        byte[] unreadable = uniquePng();
+        when(reader.read(aryEq(unreadable), any())).thenThrow(new ReceiptReadingException("model down", null));
+
+        user().multiPart("images", "first.png", uniquePng(), "image/png")
+                .multiPart("images", "blurry.png", unreadable, "image/png")
+                .when().post("/receipts/batch")
+                .then().statusCode(200)
+                .body(containsString("first.png"))
+                .body(containsString("/review\""))
+                .body(containsString("blurry.png"))
+                .body(containsString("Try it again on its own"));
+    }
+
+    @Test
+    void batchRefusesMoreThanFivePhotosBeforeReadingAny() {
+        var request = user();
+        for (int i = 0; i < 6; i++) {
+            request = request.multiPart("images", i + ".png", uniquePng(), "image/png");
+        }
+
+        request.when().post("/receipts/batch")
+                .then().statusCode(400).body(containsString("Up to 5 photos"));
+        verifyNoInteractions(reader);
+    }
+
+    @Test
+    void batchRefusesAFileThatIsNotAnImage() {
+        user().multiPart("images", "ok.png", uniquePng(), "image/png")
+                .multiPart("images", "notes.png", "not an image".getBytes(StandardCharsets.UTF_8), "image/png")
+                .when().post("/receipts/batch")
+                .then().statusCode(400).body(containsString("Only JPG and PNG"));
+        verifyNoInteractions(reader);
     }
 
     @Test
@@ -165,8 +203,19 @@ class ReceiptWebFlowTest {
     }
 
     @Test
-    void oversizedUploadIsRefused() {
-        byte[] huge = Arrays.copyOf(PNG_SIGNATURE, 11 * 1024 * 1024);
+    void photoOverTenMegabytesIsRefused() {
+        byte[] big = Arrays.copyOf(PNG_SIGNATURE, 11 * 1024 * 1024);
+
+        user().multiPart("image", "receipt.png", big, "image/png")
+                .when().post("/receipts")
+                .then().statusCode(400).body(containsString("up to 10 MB"));
+
+        verifyNoInteractions(reader);
+    }
+
+    @Test
+    void requestOverTheBodyLimitIsRefused() {
+        byte[] huge = Arrays.copyOf(PNG_SIGNATURE, 31 * 1024 * 1024);
 
         try {
             user().multiPart("image", "receipt.png", huge, "image/png")

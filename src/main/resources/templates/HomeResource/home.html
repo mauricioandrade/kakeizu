@@ -11,6 +11,18 @@
         <button type="submit">Read receipt</button>
         <p id="reading" class="htmx-indicator muted" role="status">Reading the receipt… the first one of the day can take a minute.</p>
     </form>
+    <details class="batch">
+        <summary>Several photos at once</summary>
+        <form method="post" action="/receipts/batch" enctype="multipart/form-data"
+              hx-boost="true" hx-indicator="#reading-batch" hx-disabled-elt="find button">
+            <div class="field">
+                <label for="images">Up to 5 photos (JPG or PNG)</label>
+                <input id="images" name="images" type="file" accept="image/jpeg,image/png" multiple required>
+            </div>
+            <button type="submit">Read all</button>
+            <p id="reading-batch" class="htmx-indicator muted" role="status">Reading the photos one after the other… about 15 seconds each.</p>
+        </form>
+    </details>
 </section>
 
 <section class="card">
