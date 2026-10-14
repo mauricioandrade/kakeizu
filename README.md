@@ -19,6 +19,16 @@ confirms. Nothing is confirmed automatically.
 
 > 🚧 Work in progress for the DEV Hacktoberfest Open-Source AI Challenge.
 
+## Screenshots
+
+| Today (phone) | Review | Sales report (phone) |
+|---|---|---|
+| ![Upload and today's receipts](docs/screenshots/today-phone.png) | ![Review: the photo next to the editable fields, problems highlighted](docs/screenshots/review.png) | ![Sales by time, weekday, method, installments and brand](docs/screenshots/sales-phone.png) |
+
+On review, the template NFC-e has no CNPJ and a zeroed access key, so it cannot be confirmed as read. Note the
+amount too: the photo says 146,46, the model read 46,46. A well-formed wrong number like this has no check
+digit, so it is the person who catches it.
+
 ## Stack
 
 Java 25 · Quarkus 3.40 · LangChain4j + Ollama · Gemma (vision) · PostgreSQL + Flyway · Qute + htmx
