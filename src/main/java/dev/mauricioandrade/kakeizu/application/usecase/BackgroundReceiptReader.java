@@ -32,22 +32,24 @@ public class BackgroundReceiptReader {
     private final ReceiptRepository repository;
     private final ImageStorage storage;
     private final ExtractionMapper mapper;
+    private final FieldRecoverer recoverer;
     private final Executor executor;
 
     @Inject
     public BackgroundReceiptReader(ReceiptReader reader, ReceiptRepository repository, ImageStorage storage,
-                                   ExtractionMapper mapper,
+                                   ExtractionMapper mapper, FieldRecoverer recoverer,
                                    @ConfigProperty(name = "kakeizu.ai.max-concurrent-readings") int workers) {
-        this(reader, repository, storage, mapper,
+        this(reader, repository, storage, mapper, recoverer,
                 Executors.newFixedThreadPool(workers, Thread.ofVirtual().name("reader-", 1).factory()));
     }
 
     BackgroundReceiptReader(ReceiptReader reader, ReceiptRepository repository, ImageStorage storage,
-                            ExtractionMapper mapper, Executor executor) {
+                            ExtractionMapper mapper, FieldRecoverer recoverer, Executor executor) {
         this.reader = reader;
         this.repository = repository;
         this.storage = storage;
         this.mapper = mapper;
+        this.recoverer = recoverer;
         this.executor = executor;
     }
 
@@ -88,9 +90,11 @@ public class BackgroundReceiptReader {
 
     private ReceiptRecord readOrGiveUp(ReceiptRecord receipt) {
         try {
-            var reading = reader.read(storage.load(receipt.imageSha256()), receipt.imageContentType());
+            byte[] image = storage.load(receipt.imageSha256());
+            var reading = reader.read(image, receipt.imageContentType());
+            var recoveries = recoverer.recover(reading.fields(), image, receipt.imageContentType());
             LOG.infof("[%s] Receipt %s read, pending review", Correlation.id(), receipt.id());
-            return receipt.read(reading, mapper.map(reading.fields()).category());
+            return receipt.read(reading, mapper.map(reading.fields()).category(), recoveries);
         } catch (RuntimeException e) {
             // A person can still type the receipt from the photo
             LOG.warnf("[%s] Receipt %s not read, left for typing: %s", Correlation.id(), receipt.id(), e.toString());

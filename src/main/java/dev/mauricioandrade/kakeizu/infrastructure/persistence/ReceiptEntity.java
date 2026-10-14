@@ -44,6 +44,9 @@ public class ReceiptEntity extends PanacheEntityBase {
     @JdbcTypeCode(SqlTypes.JSON)
     public String rawModelOutput;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    public String fieldRecoveries;
+
     public Instant createdAt;
 
     @Enumerated(EnumType.STRING)

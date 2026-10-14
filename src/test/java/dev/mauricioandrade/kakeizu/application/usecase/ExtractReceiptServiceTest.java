@@ -21,6 +21,7 @@ import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.UploadResult;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptReader;
+import dev.mauricioandrade.kakeizu.domain.service.CheckDigitRecovery;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,7 +37,7 @@ class ExtractReceiptServiceTest {
     // Holds the background work until the test runs it, so both sides of the queue can be seen
     final List<Runnable> queue = new ArrayList<>();
     final BackgroundReceiptReader backgroundReader = new BackgroundReceiptReader(reader, repository, storage,
-            Fixtures.MAPPER, queue::add);
+            Fixtures.MAPPER, new FieldRecoverer(reader, new CheckDigitRecovery(), true), queue::add);
     final ExtractReceiptService service = new ExtractReceiptService(backgroundReader, repository, storage, Fixtures.NOW);
 
     @Test

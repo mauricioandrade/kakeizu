@@ -1,6 +1,7 @@
 package dev.mauricioandrade.kakeizu.domain.model;
 
 import dev.mauricioandrade.kakeizu.domain.exception.InvalidValueException;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -19,6 +20,40 @@ public enum CheckDigitField {
         this.formField = formField;
         this.length = length;
         this.valueObject = valueObject;
+    }
+
+    /**
+     * The guarded fields that were read but fail their check digits (or their shape). Missing ones are left alone:
+     * "not found" is a different problem, and a CNPJ is optional on a card slip.
+     */
+    public static List<CheckDigitField> failingIn(ReceiptFields fields) {
+        return guardedIn(fields.type()).stream()
+                .filter(field -> {
+                    String value = field.valueIn(fields);
+                    return value != null && !value.isBlank() && !field.isValid(value);
+                })
+                .toList();
+    }
+
+    private static List<CheckDigitField> guardedIn(String type) {
+        ReceiptType parsed;
+        try {
+            parsed = type == null ? null : ReceiptType.valueOf(type.strip().toUpperCase());
+        } catch (IllegalArgumentException _) {
+            parsed = null;
+        }
+        return parsed == null ? List.of() : switch (parsed) {
+            case NFE, NFCE -> List.of(CNPJ, NFE_ACCESS_KEY);
+            case CARD -> List.of(CNPJ);
+            case PIX, CHEQUE -> List.of();
+        };
+    }
+
+    public String valueIn(ReceiptFields fields) {
+        return switch (this) {
+            case CNPJ -> fields.taxId();
+            case NFE_ACCESS_KEY -> fields.uniqueId();
+        };
     }
 
     /**

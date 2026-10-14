@@ -8,14 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.mauricioandrade.kakeizu.domain.exception.DuplicateReceiptException;
 import dev.mauricioandrade.kakeizu.domain.model.CardBrand;
 import dev.mauricioandrade.kakeizu.domain.model.CardReceipt;
+import dev.mauricioandrade.kakeizu.domain.model.CheckDigitField;
 import dev.mauricioandrade.kakeizu.domain.model.Category;
 import dev.mauricioandrade.kakeizu.domain.model.ChequeReceipt;
 import dev.mauricioandrade.kakeizu.domain.model.Cmc7;
 import dev.mauricioandrade.kakeizu.domain.model.Cnpj;
 import dev.mauricioandrade.kakeizu.domain.model.Direction;
 import dev.mauricioandrade.kakeizu.domain.model.ExtractionResult;
+import dev.mauricioandrade.kakeizu.domain.model.FieldRecovery;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalCoupon;
 import dev.mauricioandrade.kakeizu.domain.model.FiscalInvoice;
+import dev.mauricioandrade.kakeizu.domain.model.ModelReading;
 import dev.mauricioandrade.kakeizu.domain.model.Money;
 import dev.mauricioandrade.kakeizu.domain.model.NfeAccessKey;
 import dev.mauricioandrade.kakeizu.domain.model.Payment;
@@ -27,6 +30,10 @@ import dev.mauricioandrade.kakeizu.domain.model.ReceiptFields;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptRecord;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptStatus;
 import dev.mauricioandrade.kakeizu.domain.model.ReceiptType;
+import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Ambiguous;
+import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Recovered;
+import dev.mauricioandrade.kakeizu.domain.model.RecoveryResult.Unrecoverable;
+import dev.mauricioandrade.kakeizu.domain.model.RecoverySource;
 import dev.mauricioandrade.kakeizu.domain.port.out.ReceiptRepository;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
@@ -60,6 +67,20 @@ class PanacheReceiptRepositoryTest {
 
     PanacheReceiptRepositoryTest(ReceiptRepository repository) {
         this.repository = repository;
+    }
+
+    @Test
+    void keepsWhatWasFoundForFieldsThatFailedTheirCheckDigits() {
+        var recoveries = List.of(
+                new FieldRecovery(CheckDigitField.CNPJ, "23010551000181",
+                        new Recovered("23010551000131", RecoverySource.REREAD), "{\"value\":\"23010551000131\"}"),
+                new FieldRecovery(CheckDigitField.NFE_ACCESS_KEY, "3526", new Ambiguous(List.of("a", "b")), null),
+                new FieldRecovery(CheckDigitField.CNPJ, "1", new Unrecoverable(), null));
+        var read = ReceiptRecord.reading(randomSha256(), "image/png", Instant.parse("2026-10-13T12:00:00Z"))
+                .read(new ModelReading(INVALID_FIELDS, "{}"), Category.GOODS, recoveries);
+        repository.save(read);
+
+        assertEquals(recoveries, repository.findById(read.id()).orElseThrow().recoveries());
     }
 
     @Test
@@ -108,7 +129,7 @@ class PanacheReceiptRepositoryTest {
         var first = pending(INVALID_FIELDS, Instant.now());
         repository.save(first);
         var sameImage = new ReceiptRecord(UUID.randomUUID(), ReceiptStatus.PENDING_REVIEW, INVALID_FIELDS, Category.OTHER,
-                first.confirmation(), first.imageSha256(), "image/png", null, Instant.now());
+                first.confirmation(), first.imageSha256(), "image/png", null, List.of(), Instant.now());
 
         var e = assertThrows(DuplicateReceiptException.class, () -> repository.save(sameImage));
         assertEquals("This image was already uploaded", e.getMessage());
