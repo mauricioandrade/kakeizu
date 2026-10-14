@@ -2,24 +2,28 @@
 {#page}today{/page}
 {#currentToday} aria-current="page"{/currentToday}
 <section class="slip" aria-labelledby="today-title">
-    <div class="slip-head">
-        <div>
-            <h1 class="slip-title" id="today-title">Today</h1>
-            <span class="slip-meta">{today}</span>
+    <div id="today-head">
+        <div class="slip-head">
+            <div>
+                <h1 class="slip-title" id="today-title">Today</h1>
+                <span class="slip-meta">{today}</span>
+            </div>
+            <div class="day-total">
+                <span class="num">{receipts.confirmedTotal.brl}</span>
+                <small>confirmed</small>
+            </div>
         </div>
-        <div class="day-total">
-            <span class="num">{receipts.confirmedTotal.brl}</span>
-            <small>confirmed</small>
-        </div>
+        {#if receipts}
+        <p class="tally">
+            {#let review=receipts.countIn('PENDING_REVIEW') reading=receipts.countIn('READING') done=receipts.countIn('CONFIRMED')}
+            {#if review > 0}<span class="is-review">{review} to review</span>{/if}
+            {#if reading > 0}<span class="is-reading">{reading} reading</span>{/if}
+            <span class="is-done">{done} confirmed</span>
+            {/let}
+        </p>
+        {/if}
     </div>
     {#if receipts}
-    <p class="tally">
-        {#let review=receipts.countIn('PENDING_REVIEW') reading=receipts.countIn('READING') done=receipts.countIn('CONFIRMED')}
-        {#if review > 0}<span class="is-review">{review} to review</span>{/if}
-        {#if reading > 0}<span class="is-reading">{reading} reading</span>{/if}
-        <span class="is-done">{done} confirmed</span>
-        {/let}
-    </p>
     <ol class="lines" reversed>
         {#for receipt in receipts}
         {#slipline receipt=receipt number=receipts.dayNumber(receipt_index) /}

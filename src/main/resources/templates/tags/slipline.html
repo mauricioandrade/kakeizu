@@ -7,4 +7,8 @@
         <span class="state">{receipt.status.label}{#if receipt.reading}…{/if}</span>
         <span class="amount">{#if receipt.reading}···{#else}<span class="cur">R$</span>{receipt.amountPlain}{/if}</span>
     </a>
+    {#if printed??}
+    {! A line just read: the tally and the day total above it are stale, so fetch them once !}
+    <span hidden hx-get="/" hx-trigger="load" hx-select="#today-head" hx-target="#today-head" hx-swap="outerHTML"></span>
+    {/if}
 </li>
