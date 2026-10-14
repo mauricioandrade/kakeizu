@@ -13,6 +13,7 @@
 ![Gemma](https://img.shields.io/badge/Gemma-vision-8E75B2?logo=googlegemini&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![htmx](https://img.shields.io/badge/htmx-2.0-3366CC?logo=htmx&logoColor=white)
+![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-D22128?logo=apache&logoColor=white)
 
 ### 🤖 The AI suggests · 🧮 the domain validates · 🧑 the human decides
 
@@ -29,6 +30,7 @@
 - [📊 Sales report](#-sales-report)
 - [🎯 Accuracy on real receipts](#-accuracy-on-real-receipts)
 - [🔓 Why open matters](#-why-open-matters)
+- [📄 License](#-license)
 
 ## 😩 The problem
 
@@ -411,6 +413,14 @@ soon as the upload page opens.
 - 🔍 **Open model, open checks.** Anyone can read every check the domain makes on what the model returns.
 
 <br clear="right">
+
+## 📄 License
+
+The code, text and screenshots are licensed under the [Apache License 2.0](LICENSE).
+
+The GIFs in `docs/gifs` are **not** covered by this license: they are short clips from third-party
+films, series and anime, belong to their respective owners, and are here only as illustration. See
+[NOTICE](NOTICE).
 
 ---
 

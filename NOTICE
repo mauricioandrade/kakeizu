@@ -1,0 +1,15 @@
+Kakeizu
+Copyright 2026 Mauricio Andrade
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party content NOT covered by this license:
+
+  docs/gifs/*.gif
+    Short clips from third-party films, TV series and anime (Spider-Man, Friends, Gintama, Naruto,
+    Dragon Ball Super, Jujutsu Kaisen). They belong to their respective copyright owners and are used
+    here only as illustration. They are not licensed under the Apache License and may not be reused
+    under it.
+
+  src/main/resources/META-INF/resources/js/htmx-*.min.js
+    htmx, Copyright Big Sky Software, distributed under its own license (Zero-Clause BSD).
